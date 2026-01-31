@@ -4,7 +4,14 @@ This document provides a comprehensive overview of the system architecture, desi
 
 ## Project Overview
 
-A Next.js 16 application with secure authentication, built for small-scale private use. The system prioritizes security, simplicity, and ease of maintenance.
+A Next.js 16 application with secure authentication and a wrestling prediction system, built for small-scale private use. The system prioritizes security, simplicity, and ease of maintenance.
+
+**Core Features:**
+- User authentication and session management
+- Wrestling event and match tracking
+- Prediction system for match outcomes and custom predictions
+- Contrarian mode gameplay
+- Historical tracking and scoring
 
 ## Technology Stack
 
@@ -47,17 +54,11 @@ const client = createClient({
 export const db = drizzle(client);
 ```
 
-**Schema**: Single `users` table
-```typescript
-{
-  id: text (primary key)
-  name: text (nullable)
-  email: text (unique, not null)
-  password: text (not null, hashed)
-  createdAt: timestamp_ms
-  updatedAt: timestamp_ms
-}
-```
+**Schema**: 16 tables total
+- **User Management** (1 table): `users`
+- **Core Wrestling Data** (6 tables): `brands`, `wrestlers`, `wrestlerNames`, `tagTeams`, `tagTeamMembers`, `championships`
+- **Events & Matches** (4 tables): `events`, `matches`, `matchParticipants`, `matchCombatantChampionships`
+- **Prediction System** (5 tables): `matchPredictions`, `customPredictionTemplates`, `eventCustomPredictions`, `userCustomPredictions`, `userEventContrarian`
 
 **Rationale**:
 - Perfect for single-instance deployments
@@ -65,6 +66,7 @@ export const db = drizzle(client);
 - Easy backup (single file: `data/database.db`)
 - Sufficient for small-scale private use
 - Zero operational complexity
+- Comprehensive data model supporting complex wrestling scenarios
 
 **Trade-offs**:
 - Not suitable for multi-instance deployments
@@ -447,6 +449,579 @@ proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
 - Multi-tenancy
 - Role-based access control (RBAC)
 - API token authentication
+
+---
+
+# Wrestling Prediction System
+
+## Overview
+
+The wrestling prediction system allows authenticated users to make predictions on wrestling event match outcomes and custom predictions. The system supports complex match scenarios including multi-team matches, free-for-all battles, and a contrarian mode where players intentionally try to get everything wrong.
+
+## Database Schema Design
+
+### Core Entities
+
+#### Brands (`brands`)
+Wrestling promotions (WWE, AEW, etc.)
+```typescript
+{
+  id: text (primary key)
+  name: text (unique, not null)
+  createdAt: timestamp_ms
+  updatedAt: timestamp_ms
+}
+```
+
+#### Wrestlers (`wrestlers`)
+Individual wrestlers with brand affiliation
+```typescript
+{
+  id: text (primary key)
+  currentName: text (not null)              // Denormalized for performance
+  brandId: text (foreign key → brands)
+  isActive: boolean (default: true)
+  createdAt: timestamp_ms
+  updatedAt: timestamp_ms
+}
+```
+
+**Design Decision**: `currentName` is denormalized to avoid JOINs for common queries. Full name history tracked separately.
+
+#### Wrestler Names (`wrestlerNames`)
+Historical tracking of wrestler name changes
+```typescript
+{
+  id: text (primary key)
+  wrestlerId: text (foreign key → wrestlers)
+  name: text (not null)
+  validFrom: timestamp_ms (not null)
+  validTo: timestamp_ms (null = current name)
+  createdAt: timestamp_ms
+}
+```
+
+**Query Pattern**: Get wrestler's name at specific event date:
+```sql
+WHERE validFrom <= eventDate AND (validTo IS NULL OR validTo > eventDate)
+```
+
+#### Tag Teams (`tagTeams`)
+Tag teams and factions
+```typescript
+{
+  id: text (primary key)
+  name: text (not null)
+  brandId: text (foreign key → brands)
+  isActive: boolean (default: true)
+  createdAt: timestamp_ms
+  updatedAt: timestamp_ms
+}
+```
+
+#### Tag Team Members (`tagTeamMembers`)
+Wrestler membership in tag teams with temporal tracking
+```typescript
+{
+  id: text (primary key)
+  tagTeamId: text (foreign key → tagTeams)
+  wrestlerId: text (foreign key → wrestlers)
+  joinedAt: timestamp_ms (not null)
+  leftAt: timestamp_ms (null = still active)
+  createdAt: timestamp_ms
+}
+```
+
+**Design Decision**: Supports roster changes over time. A wrestler can be in multiple tag teams historically.
+
+#### Championships (`championships`)
+Title belts by brand
+```typescript
+{
+  id: text (primary key)
+  name: text (not null)
+  brandId: text (foreign key → brands)
+  isActive: boolean (default: true)
+  createdAt: timestamp_ms
+  updatedAt: timestamp_ms
+}
+```
+
+### Events & Matches
+
+#### Events (`events`)
+Wrestling shows and pay-per-views
+```typescript
+{
+  id: text (primary key)
+  name: text (not null)
+  brandId: text (foreign key → brands)
+  eventDate: timestamp_ms (not null)
+  status: text (default: 'open')          // 'open' | 'locked' | 'completed'
+  createdAt: timestamp_ms
+  updatedAt: timestamp_ms
+}
+```
+
+**Event Lifecycle:**
+1. **open**: Users can make and edit predictions
+2. **locked**: Event started, no more predictions allowed, admins can enter results
+3. **completed**: Results finalized, scores calculated
+
+#### Matches (`matches`)
+Individual matches on an event card
+```typescript
+{
+  id: text (primary key)
+  eventId: text (foreign key → events)
+  matchType: text (not null)              // 'singles', 'tag', 'triple_threat', 'battle_royal', etc.
+  matchOrder: integer (not null)
+  outcome: text (nullable)                 // 'winner', 'draw', 'no_contest'
+  winningSide: integer (nullable)          // 1, 2, 3, 4... for team matches
+  winnerParticipantId: text (nullable)     // For free-for-all matches
+  createdAt: timestamp_ms
+  updatedAt: timestamp_ms
+}
+```
+
+**Design Decision**: Dual winner tracking:
+- **Team matches**: Use `winningSide` (1, 2, 3, 4...)
+- **Free-for-all**: Use `winnerParticipantId` (specific wrestler/team)
+
+#### Match Participants (`matchParticipants`)
+Flexible participant system using polymorphic pattern
+```typescript
+{
+  id: text (primary key)
+  matchId: text (foreign key → matches)
+  side: integer (nullable)                 // 1, 2, 3... for teams, NULL for free-for-all
+  participantType: text (not null)         // 'wrestler' | 'tag_team'
+  participantId: text (not null)           // References wrestlers.id or tagTeams.id
+  entryOrder: integer (nullable)           // For Royal Rumble style matches
+  createdAt: timestamp_ms
+}
+```
+
+**Critical Design**: This polymorphic pattern supports any match configuration:
+
+**Example 1: Traditional 1v1**
+```
+Side 1: {participantType: 'wrestler', participantId: 'roman-reigns', side: 1}
+Side 2: {participantType: 'wrestler', participantId: 'seth-rollins', side: 2}
+```
+
+**Example 2: Tag Team + Individual vs 3 Individuals**
+```
+Side 1: {participantType: 'tag_team', participantId: 'hardy-boyz', side: 1}
+Side 1: {participantType: 'wrestler', participantId: 'jeff-hardy', side: 1}
+Side 2: {participantType: 'wrestler', participantId: 'wrestler-1', side: 2}
+Side 2: {participantType: 'wrestler', participantId: 'wrestler-2', side: 2}
+Side 2: {participantType: 'wrestler', participantId: 'wrestler-3', side: 2}
+```
+
+**Example 3: 3v3v3v3 (Four Teams)**
+```
+12 rows total with side values: 1, 1, 1, 2, 2, 2, 3, 3, 3, 4, 4, 4
+Each with participantType: 'wrestler' and unique participantId
+```
+
+**Example 4: 25-Man Battle Royal (Free-for-All)**
+```
+25 rows with side: NULL, participantType: 'wrestler', unique participantId
+```
+
+**Example 5: Royal Rumble (Entry Order Matters)**
+```
+30 rows with side: NULL, entryOrder: 1-30
+```
+
+**Application Responsibility**: Validate that `participantId` exists in the appropriate table (`wrestlers` or `tagTeams`) based on `participantType`.
+
+#### Match Combatant Championships (`matchCombatantChampionships`)
+Links championships to specific combatants in a match
+```typescript
+{
+  id: text (primary key)
+  matchId: text (foreign key → matches)
+  championshipId: text (foreign key → championships)
+  participantType: text (not null)         // 'wrestler' | 'tag_team'
+  participantId: text (not null)           // Who holds/defends the belt
+  createdAt: timestamp_ms
+}
+```
+
+**Use Case**: Indicates a title is on the line (e.g., "Roman Reigns (c) vs Cody Rhodes for WWE Championship")
+
+### Prediction System
+
+#### Match Predictions (`matchPredictions`)
+User predictions for match winners
+```typescript
+{
+  id: text (primary key)
+  userId: text (foreign key → users)
+  matchId: text (foreign key → matches)
+  predictedSide: integer (nullable)        // For team matches (1, 2, 3, 4...)
+  predictedParticipantId: text (nullable)  // For free-for-all matches
+  isCorrect: boolean (nullable)            // NULL until scored
+  createdAt: timestamp_ms
+  updatedAt: timestamp_ms
+  UNIQUE(userId, matchId)                  // One prediction per user per match
+}
+```
+
+**Prediction Logic:**
+- **Team matches** (side NOT NULL in participants): User predicts `predictedSide`
+  - Scoring: Compare with `matches.winningSide`
+- **Free-for-all** (side IS NULL in participants): User predicts `predictedParticipantId`
+  - Scoring: Compare with `matches.winnerParticipantId`
+
+**Validation**: Application ensures only one field is populated based on match type.
+
+#### Custom Prediction Templates (`customPredictionTemplates`)
+Reusable prediction types
+```typescript
+{
+  id: text (primary key)
+  name: text (not null)
+  description: text (nullable)
+  predictionType: text (not null)          // 'time', 'count', 'wrestler', 'boolean', 'text'
+  createdAt: timestamp_ms
+  updatedAt: timestamp_ms
+}
+```
+
+**Seeded Templates:**
+1. **First Blood** (type: 'time') - "When does X bleed in a given fight?"
+2. **Physicality Counter** (type: 'count') - "How many times is 'Physicality' said?"
+3. **Returns and Debuts** (type: 'wrestler') - "Which wrestler will return/debut?"
+4. **Tables Broken** (type: 'count') - "How many tables get broken?"
+5. **Will There Be Interference?** (type: 'boolean') - "Will there be outside interference?"
+
+#### Event Custom Predictions (`eventCustomPredictions`)
+Instance of a custom prediction on a specific event
+```typescript
+{
+  id: text (primary key)
+  eventId: text (foreign key → events)
+  templateId: text (foreign key → customPredictionTemplates)
+  question: text (not null)                // Customized question for this event
+
+  // Answer fields - use appropriate one based on template type
+  answerTime: timestamp_ms (nullable)
+  answerCount: integer (nullable)
+  answerWrestlerId: text (nullable)
+  answerBoolean: boolean (nullable)
+  answerText: text (nullable)
+
+  isScored: boolean (default: false)
+  createdAt: timestamp_ms
+  updatedAt: timestamp_ms
+}
+```
+
+**Design Decision**: Multiple answer columns (sparse table) chosen over:
+- JSON column (limited SQLite JSON support, harder to query)
+- Separate tables per type (too many tables, complex unions)
+
+**Customization Example**: Template "First Blood" → Event question "When does Roman Reigns bleed?"
+
+#### User Custom Predictions (`userCustomPredictions`)
+User's predictions for custom predictions
+```typescript
+{
+  id: text (primary key)
+  userId: text (foreign key → users)
+  eventCustomPredictionId: text (foreign key → eventCustomPredictions)
+
+  // User's prediction - use appropriate field based on template type
+  predictionTime: timestamp_ms (nullable)
+  predictionCount: integer (nullable)
+  predictionWrestlerId: text (nullable)
+  predictionBoolean: boolean (nullable)
+  predictionText: text (nullable)
+
+  isCorrect: boolean (nullable)            // NULL until scored
+  createdAt: timestamp_ms
+  updatedAt: timestamp_ms
+  UNIQUE(userId, eventCustomPredictionId)
+}
+```
+
+**Scoring**: Application logic compares prediction field with corresponding answer field based on template type.
+
+#### User Event Contrarian (`userEventContrarian`)
+Tracks contrarian mode per user per event
+```typescript
+{
+  id: text (primary key)
+  userId: text (foreign key → users)
+  eventId: text (foreign key → events)
+  isContrarian: boolean (default: false)
+  didWinContrarian: boolean (nullable)     // NULL until scored
+  createdAt: timestamp_ms
+  updatedAt: timestamp_ms
+  UNIQUE(userId, eventId)
+}
+```
+
+**Contrarian Mode Logic:**
+- User declares they're playing contrarian before event starts
+- Goal: Get ALL match predictions wrong
+- Scoring: If `didWinContrarian` is true, they automatically win regardless of point totals
+- Must get EVERY match prediction incorrect to win
+
+## Match Type Support Matrix
+
+| Match Type | Side Values | Winner Field | Example |
+|------------|-------------|--------------|---------|
+| 1v1 Singles | 1, 2 | winningSide | Roman vs Seth |
+| Tag Team | 1, 2 | winningSide | Hardy Boyz vs Usos |
+| Triple Threat | 1, 2, 3 | winningSide | A vs B vs C |
+| Fatal 4-Way | 1, 2, 3, 4 | winningSide | A vs B vs C vs D |
+| 3v3v3v3 | 1, 2, 3, 4 | winningSide | 12 wrestlers, 4 teams |
+| Battle Royal | NULL | winnerParticipantId | 25 wrestlers free-for-all |
+| Royal Rumble | NULL (with entryOrder) | winnerParticipantId | 30 wrestlers, numbered entry |
+
+## Database Performance
+
+### Indexes
+All tables include strategic indexes:
+- Foreign keys indexed for JOIN performance
+- User/event combinations indexed for prediction queries
+- Event status indexed for filtering
+- Match order indexed for sorting
+
+### Query Patterns
+
+**Get all matches with participants for an event:**
+```typescript
+const matches = await db
+  .select()
+  .from(matches)
+  .where(eq(matches.eventId, eventId))
+  .orderBy(matches.matchOrder);
+
+const participants = await db
+  .select()
+  .from(matchParticipants)
+  .where(inArray(matchParticipants.matchId, matchIds));
+```
+
+**Get user's predictions for an event:**
+```typescript
+const predictions = await db
+  .select()
+  .from(matchPredictions)
+  .innerJoin(matches, eq(matches.id, matchPredictions.matchId))
+  .where(and(
+    eq(matchPredictions.userId, userId),
+    eq(matches.eventId, eventId)
+  ));
+```
+
+**Score match predictions after match completion:**
+```typescript
+// Team match
+await db
+  .update(matchPredictions)
+  .set({
+    isCorrect: sql`CASE
+      WHEN ${matchPredictions.predictedSide} = ${winningSide} THEN 1
+      ELSE 0
+    END`
+  })
+  .where(eq(matchPredictions.matchId, matchId));
+
+// Free-for-all match
+await db
+  .update(matchPredictions)
+  .set({
+    isCorrect: sql`CASE
+      WHEN ${matchPredictions.predictedParticipantId} = ${winnerParticipantId} THEN 1
+      ELSE 0
+    END`
+  })
+  .where(eq(matchPredictions.matchId, matchId));
+```
+
+## Data Seeding
+
+### Initial Seed Script
+**File**: `scripts/seed-wrestling-data.ts`
+
+```bash
+bunx tsx scripts/seed-wrestling-data.ts
+```
+
+**Creates:**
+- 2 brands (WWE, AEW)
+- 5 custom prediction templates (time, count, wrestler, boolean)
+
+### Future Data Management
+
+Users will create:
+- Wrestlers (via admin UI)
+- Tag teams (via admin UI)
+- Championships (via admin UI)
+- Events and matches (via event management UI)
+- Predictions (via prediction submission UI)
+
+## Application Validation Requirements
+
+Since the schema uses polymorphic relationships and flexible prediction types, the application layer must enforce:
+
+1. **Match Participant Validation**
+   - `participantId` exists in correct table based on `participantType`
+   - Team matches have at least 2 participants
+   - Sides are balanced (at least 1 participant per side)
+
+2. **Event Status Transitions**
+   - Only allow: open → locked → completed
+   - Prevent prediction modifications when status is not 'open'
+
+3. **Prediction Validation**
+   - Match predictions: Validate correct field populated (predictedSide vs predictedParticipantId)
+   - Custom predictions: Use correct field based on template's `predictionType`
+   - Enforce prediction deadlines (before event status changes to 'locked')
+
+4. **Contrarian Mode**
+   - Can only enable before first prediction is made
+   - Validate all predictions are incorrect to trigger auto-win
+
+5. **Championship Tracking**
+   - `participantId` in `matchCombatantChampionships` must exist in match participants
+
+## Workflow Examples
+
+### Creating an Event
+
+1. Admin creates event (status: 'open')
+2. Admin adds matches to event card (with matchOrder)
+3. Admin adds participants to each match
+4. Optionally link championships to combatants
+5. Admin adds custom predictions to event
+6. Users make predictions
+7. Admin locks event (status: 'locked')
+8. During event, admin enters results
+9. Admin completes event (status: 'completed')
+10. System scores all predictions
+
+### User Prediction Flow
+
+1. User views open events
+2. User selects event
+3. User views match card with participants
+4. For each match:
+   - Team match: User selects a side (1, 2, 3...)
+   - Free-for-all: User selects specific wrestler
+5. User answers custom predictions
+6. User optionally enables contrarian mode
+7. System saves all predictions
+8. After event completes, user views scores
+
+### Scoring Logic
+
+**Match Predictions:**
+```typescript
+// Correct if predictedSide matches winningSide (team matches)
+// OR predictedParticipantId matches winnerParticipantId (free-for-all)
+isCorrect = (predictedSide === winningSide) ||
+            (predictedParticipantId === winnerParticipantId)
+```
+
+**Custom Predictions:**
+```typescript
+// Based on predictionType from template
+switch (predictionType) {
+  case 'time':
+    isCorrect = (predictionTime === answerTime)
+  case 'count':
+    isCorrect = (predictionCount === answerCount)
+  case 'wrestler':
+    isCorrect = (predictionWrestlerId === answerWrestlerId)
+  case 'boolean':
+    isCorrect = (predictionBoolean === answerBoolean)
+  case 'text':
+    isCorrect = (predictionText === answerText) // Exact match or fuzzy?
+}
+```
+
+**Overall Winner:**
+```typescript
+// 1. Check if any contrarian won
+const contrarianWinner = users.find(u =>
+  u.didWinContrarian === true
+);
+if (contrarianWinner) return contrarianWinner;
+
+// 2. Otherwise, highest score wins
+const scores = users.map(u => ({
+  userId: u.id,
+  score: countCorrectPredictions(u, event)
+}));
+return scores.sort((a, b) => b.score - a.score)[0];
+```
+
+## Future Enhancements
+
+### Planned Features (Out of Current Scope)
+- Event management UI (create events, add matches)
+- Prediction submission UI (user-friendly form)
+- Results entry UI (admin enters match outcomes)
+- Leaderboard and statistics dashboard
+- Scoring calculation engine
+- Historical analysis (user performance over time)
+- Export predictions to PDF/CSV
+- Email notifications (event starting, results available)
+- Draft picks (fantasy-style wrestler selection)
+- Achievements and badges
+
+### Not Planned
+- Real-time live scoring during events
+- Integration with external wrestling APIs
+- Mobile native apps
+- Social features (comments, likes, sharing)
+- Wagering or prizes
+
+## Data Integrity
+
+### Foreign Key Constraints
+All relationships enforced at database level:
+- User deletions cascade to predictions
+- Event deletions cascade to matches and predictions
+- Wrestler/team deletions require soft delete (isActive: false)
+
+### Soft Deletes
+Entities with historical importance use `isActive` flag:
+- Wrestlers (preserve prediction history)
+- Tag teams (preserve match history)
+- Championships (preserve match history)
+
+### Hard Deletes
+Safe to hard delete:
+- Events (if no predictions exist)
+- Prediction templates (if not used in any events)
+
+## Backup and Recovery
+
+**Critical Data**:
+- All data stored in `data/database.db`
+- Single-file backup strategy
+
+**Backup Frequency**:
+- Before each event (manual)
+- Daily automated backups recommended
+- Before any schema migrations
+
+**Recovery**:
+```bash
+# Restore from backup
+cp data/database.db.backup data/database.db
+
+# Verify integrity
+sqlite3 data/database.db "PRAGMA integrity_check;"
+```
 
 ## References
 
