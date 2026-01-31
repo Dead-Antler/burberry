@@ -2,6 +2,11 @@ import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/auth';
 import { rateLimit } from './rate-limit';
 import type { Session } from 'next-auth';
+import { randomUUID } from 'crypto';
+import DOMPurify from 'isomorphic-dompurify';
+
+// Re-export error constants for convenience
+export { API_ERRORS, getErrorMessage } from './api-errors';
 
 /**
  * Standard API error response
@@ -121,6 +126,12 @@ export function apiHandler(
   }
 ) {
   return async (req: NextRequest, context?: { params?: Promise<Record<string, string>> }) => {
+    // Generate or extract request ID for tracing
+    const requestId = req.headers.get('x-request-id') || randomUUID();
+
+    // Declare session outside try block so it's accessible in catch for logging
+    let session: AuthSession | null = null;
+
     try {
       // Apply rate limiting if configured
       if (options?.rateLimit) {
@@ -128,7 +139,6 @@ export function apiHandler(
       }
 
       // Apply authentication if required (default: true)
-      let session: AuthSession | null = null;
       if (options?.requireAuth !== false) {
         session = await requireAuth(req);
       }
@@ -144,27 +154,115 @@ export function apiHandler(
       // Call the handler
       // Type assertion needed because handler expects non-null session
       // but we know it's non-null when requireAuth !== false (default behavior)
-      return await handler(req, { session: session as AuthSession, params });
+      const response = await handler(req, { session: session as AuthSession, params });
+
+      // Add request ID to response headers
+      response.headers.set('x-request-id', requestId);
+
+      return response;
     } catch (error) {
       // If error is already a NextResponse (from our helper functions), return it
       if (error instanceof NextResponse) {
+        // Add request ID to error response as well
+        error.headers.set('x-request-id', requestId);
         return error;
       }
 
-      // Otherwise, log and return generic error
-      console.error('API Error:', error);
-      return apiError('Internal server error', 500);
+      // Log detailed error information for debugging
+      console.error('API Error:', {
+        requestId,
+        error: error instanceof Error ? error.message : String(error),
+        stack: error instanceof Error ? error.stack : undefined,
+        method: req.method,
+        url: req.url,
+        userId: session?.user?.id,
+        timestamp: new Date().toISOString(),
+      });
+
+      // In production, send to error tracking service
+      if (process.env.NODE_ENV === 'production') {
+        // TODO: Integrate error tracking service (e.g., Sentry)
+        // await errorTracker.captureException(error, { req, session, requestId });
+      }
+
+      // Return generic error to client (don't leak internal details)
+      const errorResponse = apiError(
+        process.env.NODE_ENV === 'development'
+          ? `Internal server error: ${error instanceof Error ? error.message : 'Unknown'}`
+          : 'Internal server error',
+        500
+      );
+
+      // Add request ID to error response headers
+      errorResponse.headers.set('x-request-id', requestId);
+
+      return errorResponse;
     }
   };
 }
 
 /**
+ * Valid entity prefixes for ID generation
+ */
+const VALID_PREFIXES = [
+  'brand',
+  'wrestler',
+  'wrestlername',
+  'tagteam',
+  'tagteammember',
+  'championship',
+  'event',
+  'match',
+  'participant',
+  'matchchamp',
+  'matchpred',
+  'custompred',
+  'eventcustompred',
+  'contrarian',
+] as const;
+
+export type EntityPrefix = typeof VALID_PREFIXES[number];
+
+/**
  * Generate a unique ID for database records
  * Uses crypto.randomUUID() for cryptographically secure IDs
+ *
+ * @param prefix - Entity type prefix (validated against VALID_PREFIXES)
+ * @returns Prefixed UUID string (e.g., "brand_550e8400-e29b-41d4-a716-446655440000")
  */
-export function generateId(prefix: string): string {
-  const { randomUUID } = require('crypto');
+export function generateId(prefix: EntityPrefix): string {
   return `${prefix}_${randomUUID()}`;
+}
+
+/**
+ * Sanitize HTML input by stripping all HTML tags
+ * Protects against XSS attacks
+ *
+ * @param input - Raw HTML string
+ * @returns Sanitized string with all HTML removed
+ */
+export function sanitizeHtml(input: string): string {
+  return DOMPurify.sanitize(input, {
+    ALLOWED_TAGS: [], // Strip all HTML
+    ALLOWED_ATTR: [],
+  });
+}
+
+/**
+ * Sanitize text input
+ * - Trims whitespace
+ * - Normalizes whitespace (multiple spaces → single space)
+ * - Enforces maximum length
+ *
+ * @param input - Raw text string
+ * @param maxLength - Maximum allowed length (default: 1000)
+ * @returns Sanitized text string
+ */
+export function sanitizeText(input: string, maxLength: number = 1000): string {
+  return input
+    .trim()
+    .replace(/\s+/g, ' ') // Normalize whitespace
+    .slice(0, maxLength); // Max length
 }
 
 /**
@@ -235,4 +333,57 @@ export function parseQueryWithSchema<T>(
     }
     throw apiError('Invalid query parameters', 400);
   }
+}
+
+/**
+ * Pagination helper types and functions
+ */
+
+export interface PaginationParams {
+  page: number;
+  limit: number;
+  sortBy?: string;
+  sortOrder: 'asc' | 'desc';
+}
+
+export interface PaginatedResponse<T> {
+  data: T[];
+  pagination: {
+    page: number;
+    limit: number;
+    total: number;
+    totalPages: number;
+    hasNext: boolean;
+    hasPrev: boolean;
+  };
+}
+
+/**
+ * Calculate pagination offset
+ */
+export function getPaginationOffset(page: number, limit: number): number {
+  return (page - 1) * limit;
+}
+
+/**
+ * Create paginated response
+ */
+export function createPaginatedResponse<T>(
+  data: T[],
+  total: number,
+  params: PaginationParams
+): PaginatedResponse<T> {
+  const totalPages = Math.ceil(total / params.limit);
+
+  return {
+    data,
+    pagination: {
+      page: params.page,
+      limit: params.limit,
+      total,
+      totalPages,
+      hasNext: params.page < totalPages,
+      hasPrev: params.page > 1,
+    },
+  };
 }

@@ -1,9 +1,7 @@
 import { NextRequest } from 'next/server';
-import { db } from '@/app/lib/db';
-import { tagTeamMembers, wrestlers } from '@/app/lib/schema';
-import { eq, isNull, and } from 'drizzle-orm';
-import { apiHandler, apiSuccess, apiError, parseBodyWithSchema, generateId } from '@/app/lib/api-helpers';
+import { apiHandler, apiSuccess, apiError, parseBodyWithSchema } from '@/app/lib/api-helpers';
 import { addTagTeamMemberSchema } from '@/app/lib/validation-schemas';
+import { tagTeamService } from '@/app/lib/services/tag-team.service';
 
 /**
  * GET /api/tag-teams/:id/members
@@ -19,24 +17,7 @@ export const GET = apiHandler(async (req: NextRequest, { params }) => {
   const { searchParams } = new URL(req.url);
   const currentOnly = searchParams.get('current') === 'true';
 
-  const conditions = [eq(tagTeamMembers.tagTeamId, params.id)];
-
-  if (currentOnly) {
-    conditions.push(isNull(tagTeamMembers.leftAt));
-  }
-
-  const members = await db
-    .select({
-      id: tagTeamMembers.id,
-      wrestlerId: tagTeamMembers.wrestlerId,
-      wrestlerName: wrestlers.currentName,
-      joinedAt: tagTeamMembers.joinedAt,
-      leftAt: tagTeamMembers.leftAt,
-    })
-    .from(tagTeamMembers)
-    .leftJoin(wrestlers, eq(tagTeamMembers.wrestlerId, wrestlers.id))
-    .where(and(...conditions))
-    .orderBy(tagTeamMembers.joinedAt);
+  const members = await tagTeamService.getMembers(params.id, { currentOnly });
 
   return apiSuccess(members);
 });
@@ -52,19 +33,7 @@ export const POST = apiHandler(async (req: NextRequest, { params }) => {
 
   const body = await parseBodyWithSchema(req, addTagTeamMemberSchema);
 
-  const joinedAt = body.joinedAt ? new Date(body.joinedAt) : new Date();
+  const member = await tagTeamService.addMember(params.id, body);
 
-  const [newMember] = await db
-    .insert(tagTeamMembers)
-    .values({
-      id: generateId('tagteammember'),
-      tagTeamId: params.id,
-      wrestlerId: body.wrestlerId,
-      joinedAt,
-      leftAt: null,
-      createdAt: new Date(),
-    })
-    .returning();
-
-  return apiSuccess(newMember, 201);
+  return apiSuccess(member, 201);
 }, { requireAdmin: true });

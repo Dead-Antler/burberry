@@ -1,74 +1,40 @@
 import { NextRequest } from 'next/server';
-import { db } from '@/app/lib/db';
-import { events, matches, matchParticipants, eventCustomPredictions } from '@/app/lib/schema';
-import { eq, gte, lte, and, inArray } from 'drizzle-orm';
-import { apiHandler, apiSuccess, parseBodyWithSchema, parseQueryWithSchema, generateId, apiError } from '@/app/lib/api-helpers';
-import { createEventSchema, eventQuerySchema } from '@/app/lib/validation-schemas';
+import {
+  apiHandler,
+  apiSuccess,
+  parseBodyWithSchema,
+  parseQueryWithSchema,
+  createPaginatedResponse,
+} from '@/app/lib/api-helpers';
+import { createEventSchema, eventQuerySchema, paginationSchema } from '@/app/lib/validation-schemas';
+import { eventService } from '@/app/lib/services/event.service';
 
 /**
  * GET /api/events
- * List all events
+ * List all events with pagination
  * Query params:
  * - brandId: filter by brand
  * - status: filter by status (open/locked/completed)
  * - fromDate: filter events from this date
  * - toDate: filter events to this date
  * - includeMatches: include match list (true/false)
+ * - page, limit, sortBy, sortOrder: pagination
  */
 export const GET = apiHandler(async (req: NextRequest) => {
   const { searchParams } = new URL(req.url);
   const query = parseQueryWithSchema(searchParams, eventQuerySchema);
+  const pagination = parseQueryWithSchema(searchParams, paginationSchema);
 
-  const conditions = [];
+  const { data, total } = await eventService.list({
+    ...pagination,
+    brandId: query.brandId,
+    status: query.status,
+    fromDate: query.fromDate,
+    toDate: query.toDate,
+    includeMatches: query.includeMatches,
+  });
 
-  if (query.brandId) {
-    conditions.push(eq(events.brandId, query.brandId));
-  }
-
-  if (query.status) {
-    conditions.push(eq(events.status, query.status));
-  }
-
-  if (query.fromDate) {
-    conditions.push(gte(events.eventDate, new Date(query.fromDate)));
-  }
-
-  if (query.toDate) {
-    conditions.push(lte(events.eventDate, new Date(query.toDate)));
-  }
-
-  const includeMatches = query.includeMatches ?? false;
-
-  const allEvents = conditions.length > 0
-    ? await db.select().from(events).where(and(...conditions)).orderBy(events.eventDate)
-    : await db.select().from(events).orderBy(events.eventDate);
-
-  if (includeMatches) {
-    const eventIds = allEvents.map((e) => e.id);
-    const allMatches =
-      eventIds.length > 0
-        ? await db.select().from(matches).where(inArray(matches.eventId, eventIds)).orderBy(matches.matchOrder)
-        : [];
-
-    // Group matches by eventId
-    const matchesByEvent = new Map<string, typeof allMatches>();
-    for (const match of allMatches) {
-      if (!matchesByEvent.has(match.eventId)) {
-        matchesByEvent.set(match.eventId, []);
-      }
-      matchesByEvent.get(match.eventId)!.push(match);
-    }
-
-    // Build result
-    const eventsWithMatches = allEvents.map((event) => ({
-      ...event,
-      matches: matchesByEvent.get(event.id) || [],
-    }));
-
-    return apiSuccess(eventsWithMatches);
-  }
-
-  return apiSuccess(allEvents);
+  return apiSuccess(createPaginatedResponse(data, total, pagination));
 });
 
 /**
@@ -78,21 +44,7 @@ export const GET = apiHandler(async (req: NextRequest) => {
 export const POST = apiHandler(async (req: NextRequest) => {
   const body = await parseBodyWithSchema(req, createEventSchema);
 
-  const id = generateId('event');
-  const now = new Date();
+  const event = await eventService.create(body);
 
-  const [newEvent] = await db
-    .insert(events)
-    .values({
-      id,
-      name: body.name,
-      brandId: body.brandId,
-      eventDate: new Date(body.eventDate),
-      status: body.status ?? 'open',
-      createdAt: now,
-      updatedAt: now,
-    })
-    .returning();
-
-  return apiSuccess(newEvent, 201);
+  return apiSuccess(event, 201);
 }, { requireAdmin: true });

@@ -1,10 +1,17 @@
 import { z } from 'zod';
+import { sanitizeText } from './api-helpers';
 
 // ============================================================================
 // Common Schemas
 // ============================================================================
 
-export const timestampSchema = z.union([z.string().datetime(), z.date(), z.coerce.date()]);
+// More precise timestamp validation
+export const timestampSchema = z
+  .union([
+    z.string().datetime({ offset: true }), // ISO 8601 with timezone
+    z.date(),
+  ])
+  .transform((val) => (typeof val === 'string' ? new Date(val) : val));
 
 export const eventStatusSchema = z.enum(['open', 'locked', 'completed']);
 export const matchOutcomeSchema = z.enum(['winner', 'draw', 'no_contest']);
@@ -16,11 +23,15 @@ export const predictionTypeSchema = z.enum(['time', 'count', 'wrestler', 'boolea
 // ============================================================================
 
 export const createBrandSchema = z.object({
-  name: z.string().min(1, 'Brand name is required').max(100, 'Brand name too long'),
+  name: z
+    .string()
+    .min(1, 'Brand name is required')
+    .max(100, 'Brand name too long')
+    .transform((s) => sanitizeText(s)),
 });
 
 export const updateBrandSchema = z.object({
-  name: z.string().min(1).max(100).optional(),
+  name: z.string().min(1).max(100).transform((s) => sanitizeText(s)).optional(),
 });
 
 export const brandQuerySchema = z.object({});
@@ -30,13 +41,13 @@ export const brandQuerySchema = z.object({});
 // ============================================================================
 
 export const createWrestlerSchema = z.object({
-  currentName: z.string().min(1, 'Wrestler name is required').max(100),
+  currentName: z.string().min(1, 'Wrestler name is required').max(100).transform((s) => sanitizeText(s)),
   brandId: z.string().min(1, 'Brand ID is required'),
   isActive: z.boolean().optional(),
 });
 
 export const updateWrestlerSchema = z.object({
-  currentName: z.string().min(1).max(100).optional(),
+  currentName: z.string().min(1).max(100).transform((s) => sanitizeText(s)).optional(),
   brandId: z.string().min(1).optional(),
   isActive: z.boolean().optional(),
 });
@@ -51,14 +62,14 @@ export const wrestlerQuerySchema = z.object({
 // ============================================================================
 
 export const createTagTeamSchema = z.object({
-  name: z.string().min(1, 'Tag team name is required').max(100),
+  name: z.string().min(1, 'Tag team name is required').max(100).transform((s) => sanitizeText(s)),
   brandId: z.string().min(1, 'Brand ID is required'),
   isActive: z.boolean().optional(),
   memberIds: z.array(z.string().min(1)).optional(),
 });
 
 export const updateTagTeamSchema = z.object({
-  name: z.string().min(1).max(100).optional(),
+  name: z.string().min(1).max(100).transform((s) => sanitizeText(s)).optional(),
   brandId: z.string().min(1).optional(),
   isActive: z.boolean().optional(),
 });
@@ -83,13 +94,13 @@ export const updateTagTeamMemberSchema = z.object({
 // ============================================================================
 
 export const createChampionshipSchema = z.object({
-  name: z.string().min(1, 'Championship name is required').max(100),
+  name: z.string().min(1, 'Championship name is required').max(100).transform((s) => sanitizeText(s)),
   brandId: z.string().min(1, 'Brand ID is required'),
   isActive: z.boolean().optional(),
 });
 
 export const updateChampionshipSchema = z.object({
-  name: z.string().min(1).max(100).optional(),
+  name: z.string().min(1).max(100).transform((s) => sanitizeText(s)).optional(),
   brandId: z.string().min(1).optional(),
   isActive: z.boolean().optional(),
 });
@@ -104,14 +115,14 @@ export const championshipQuerySchema = z.object({
 // ============================================================================
 
 export const createEventSchema = z.object({
-  name: z.string().min(1, 'Event name is required').max(200),
+  name: z.string().min(1, 'Event name is required').max(200).transform((s) => sanitizeText(s)),
   brandId: z.string().min(1, 'Brand ID is required'),
   eventDate: timestampSchema,
   status: eventStatusSchema.optional(),
 });
 
 export const updateEventSchema = z.object({
-  name: z.string().min(1).max(200).optional(),
+  name: z.string().min(1).max(200).transform((s) => sanitizeText(s)).optional(),
   brandId: z.string().min(1).optional(),
   eventDate: timestampSchema.optional(),
   status: eventStatusSchema.optional(),
@@ -135,10 +146,10 @@ export const eventDetailQuerySchema = z.object({
 // ============================================================================
 
 export const matchParticipantSchema = z.object({
-  side: z.number().int().positive().nullable(),
+  side: z.number().int().positive().nullable().or(z.null()),
   participantType: participantTypeSchema,
   participantId: z.string().min(1),
-  entryOrder: z.number().int().positive().nullable().optional(),
+  entryOrder: z.number().int().positive().nullable().or(z.null()).optional(),
 });
 
 export const matchChampionshipSchema = z.object({
@@ -164,17 +175,17 @@ export const updateMatchSchema = z.object({
 });
 
 export const addMatchParticipantSchema = z.object({
-  side: z.number().int().positive().nullable(),
+  side: z.number().int().positive().nullable().or(z.null()),
   participantType: participantTypeSchema,
   participantId: z.string().min(1),
-  entryOrder: z.number().int().positive().nullable().optional(),
+  entryOrder: z.number().int().positive().nullable().or(z.null()).optional(),
 });
 
 export const updateMatchParticipantSchema = z.object({
-  side: z.number().int().positive().nullable().optional(),
+  side: z.number().int().positive().nullable().or(z.null()).optional(),
   participantType: participantTypeSchema.optional(),
   participantId: z.string().min(1).optional(),
-  entryOrder: z.number().int().positive().nullable().optional(),
+  entryOrder: z.number().int().positive().nullable().or(z.null()).optional(),
 });
 
 // ============================================================================
@@ -182,14 +193,14 @@ export const updateMatchParticipantSchema = z.object({
 // ============================================================================
 
 export const createCustomPredictionTemplateSchema = z.object({
-  name: z.string().min(1, 'Template name is required').max(100),
-  description: z.string().max(500).nullable().optional(),
+  name: z.string().min(1, 'Template name is required').max(100).transform((s) => sanitizeText(s)),
+  description: z.string().max(500).transform((s) => sanitizeText(s, 500)).nullable().optional(),
   predictionType: predictionTypeSchema,
 });
 
 export const updateCustomPredictionTemplateSchema = z.object({
-  name: z.string().min(1).max(100).optional(),
-  description: z.string().max(500).nullable().optional(),
+  name: z.string().min(1).max(100).transform((s) => sanitizeText(s)).optional(),
+  description: z.string().max(500).transform((s) => sanitizeText(s, 500)).nullable().optional(),
   predictionType: predictionTypeSchema.optional(),
 });
 
@@ -199,22 +210,22 @@ export const updateCustomPredictionTemplateSchema = z.object({
 
 export const createEventCustomPredictionSchema = z.object({
   templateId: z.string().min(1, 'Template ID is required'),
-  question: z.string().min(1, 'Question is required').max(500),
+  question: z.string().min(1, 'Question is required').max(500).transform((s) => sanitizeText(s, 500)),
   answerTime: timestampSchema.nullable().optional(),
   answerCount: z.number().int().nullable().optional(),
   answerWrestlerId: z.string().min(1).nullable().optional(),
   answerBoolean: z.boolean().nullable().optional(),
-  answerText: z.string().max(200).nullable().optional(),
+  answerText: z.string().max(200).transform((s) => sanitizeText(s, 200)).nullable().optional(),
   isScored: z.boolean().optional(),
 });
 
 export const updateEventCustomPredictionSchema = z.object({
-  question: z.string().min(1).max(500).optional(),
+  question: z.string().min(1).max(500).transform((s) => sanitizeText(s, 500)).optional(),
   answerTime: timestampSchema.nullable().optional(),
   answerCount: z.number().int().nullable().optional(),
   answerWrestlerId: z.string().min(1).nullable().optional(),
   answerBoolean: z.boolean().nullable().optional(),
-  answerText: z.string().max(200).nullable().optional(),
+  answerText: z.string().max(200).transform((s) => sanitizeText(s, 200)).nullable().optional(),
   isScored: z.boolean().optional(),
 });
 
@@ -274,7 +285,7 @@ export const createUserCustomPredictionSchema = z.object({
   predictionCount: z.number().int().nullable().optional(),
   predictionWrestlerId: z.string().min(1).nullable().optional(),
   predictionBoolean: z.boolean().nullable().optional(),
-  predictionText: z.string().max(200).nullable().optional(),
+  predictionText: z.string().max(200).transform((s) => sanitizeText(s, 200)).nullable().optional(),
 });
 
 export const updateUserCustomPredictionSchema = z.object({
@@ -282,7 +293,7 @@ export const updateUserCustomPredictionSchema = z.object({
   predictionCount: z.number().int().nullable().optional(),
   predictionWrestlerId: z.string().min(1).nullable().optional(),
   predictionBoolean: z.boolean().nullable().optional(),
-  predictionText: z.string().max(200).nullable().optional(),
+  predictionText: z.string().max(200).transform((s) => sanitizeText(s, 200)).nullable().optional(),
 });
 
 export const userCustomPredictionQuerySchema = z.object({
@@ -309,4 +320,22 @@ export const updateContrarianSchema = z.object({
 
 export const scoreQuerySchema = z.object({
   userId: z.string().optional(),
+});
+
+// ============================================================================
+// Pagination Schema
+// ============================================================================
+
+/**
+ * Standard pagination parameters for list endpoints
+ * - page: Page number (1-indexed)
+ * - limit: Items per page (max 100, default 20)
+ * - sortBy: Field to sort by (optional)
+ * - sortOrder: Sort direction (asc/desc, default asc)
+ */
+export const paginationSchema = z.object({
+  page: z.coerce.number().int().positive().default(1),
+  limit: z.coerce.number().int().positive().max(100).default(20),
+  sortBy: z.string().optional(),
+  sortOrder: z.enum(['asc', 'desc']).default('asc'),
 });

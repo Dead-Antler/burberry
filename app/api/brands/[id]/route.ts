@@ -1,9 +1,7 @@
 import { NextRequest } from 'next/server';
-import { db } from '@/app/lib/db';
-import { brands } from '@/app/lib/schema';
-import { eq } from 'drizzle-orm';
 import { apiHandler, apiSuccess, apiError, parseBodyWithSchema } from '@/app/lib/api-helpers';
 import { updateBrandSchema } from '@/app/lib/validation-schemas';
+import { brandService } from '@/app/lib/services/brand.service';
 
 /**
  * GET /api/brands/:id
@@ -14,11 +12,7 @@ export const GET = apiHandler(async (_req, { params }) => {
     throw apiError('Brand ID is required');
   }
 
-  const [brand] = await db.select().from(brands).where(eq(brands.id, params.id));
-
-  if (!brand) {
-    throw apiError('Brand not found', 404);
-  }
+  const brand = await brandService.getById(params.id);
 
   return apiSuccess(brand);
 });
@@ -38,20 +32,9 @@ export const PATCH = apiHandler(async (req: NextRequest, { params }) => {
     throw apiError('No fields to update');
   }
 
-  const [updatedBrand] = await db
-    .update(brands)
-    .set({
-      name: body.name,
-      updatedAt: new Date(),
-    })
-    .where(eq(brands.id, params.id))
-    .returning();
+  const brand = await brandService.update(params.id, body);
 
-  if (!updatedBrand) {
-    throw apiError('Brand not found', 404);
-  }
-
-  return apiSuccess(updatedBrand);
+  return apiSuccess(brand);
 }, { requireAdmin: true });
 
 /**
@@ -63,11 +46,7 @@ export const DELETE = apiHandler(async (_req, { params }) => {
     throw apiError('Brand ID is required');
   }
 
-  const [deletedBrand] = await db.delete(brands).where(eq(brands.id, params.id)).returning();
-
-  if (!deletedBrand) {
-    throw apiError('Brand not found', 404);
-  }
+  await brandService.delete(params.id);
 
   return apiSuccess({ message: 'Brand deleted successfully', id: params.id });
 }, { requireAdmin: true });

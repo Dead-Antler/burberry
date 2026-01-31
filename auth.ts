@@ -22,6 +22,10 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         password: { label: 'Password', type: 'password' },
       },
       async authorize(credentials) {
+        // Track start time for timing attack mitigation
+        const startTime = Date.now();
+        const MIN_AUTH_TIME_MS = 100;
+
         if (!credentials?.email || !credentials?.password) {
           return null;
         }
@@ -35,6 +39,12 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         // Always perform bcrypt comparison (constant time) to prevent timing attacks
         const hashedPassword = user && user.length > 0 ? user[0].password : DUMMY_HASH;
         const passwordMatch = await bcrypt.compare(credentials.password as string, hashedPassword);
+
+        // Add minimum delay to prevent timing attacks (email enumeration)
+        const elapsed = Date.now() - startTime;
+        if (elapsed < MIN_AUTH_TIME_MS) {
+          await new Promise((resolve) => setTimeout(resolve, MIN_AUTH_TIME_MS - elapsed));
+        }
 
         // Only succeed if user exists AND password matches
         if (!user || user.length === 0 || !passwordMatch) {

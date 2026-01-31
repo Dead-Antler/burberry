@@ -1,17 +1,7 @@
 import { NextRequest } from 'next/server';
-import { db } from '@/app/lib/db';
-import {
-  matches,
-  matchParticipants,
-  matchCombatantChampionships,
-  wrestlers,
-  tagTeams,
-  championships,
-  events,
-} from '@/app/lib/schema';
-import { eq } from 'drizzle-orm';
 import { apiHandler, apiSuccess, apiError, parseBodyWithSchema } from '@/app/lib/api-helpers';
 import { updateMatchSchema } from '@/app/lib/validation-schemas';
+import { matchService } from '@/app/lib/services/match.service';
 
 /**
  * GET /api/matches/:id
@@ -29,54 +19,12 @@ export const GET = apiHandler(async (req: NextRequest, { params }) => {
   const includeParticipants = searchParams.get('includeParticipants') === 'true';
   const includeChampionships = searchParams.get('includeChampionships') === 'true';
 
-  const [match] = await db.select().from(matches).where(eq(matches.id, params.id));
+  const match = await matchService.getById(params.id, {
+    includeParticipants,
+    includeChampionships,
+  });
 
-  if (!match) {
-    throw apiError('Match not found', 404);
-  }
-
-  const result: Record<string, unknown> = { ...match };
-
-  if (includeParticipants) {
-    const participants = await db
-      .select()
-      .from(matchParticipants)
-      .where(eq(matchParticipants.matchId, params.id));
-
-    // Enrich participants with wrestler/tag team data
-    const enrichedParticipants = await Promise.all(
-      participants.map(async (participant) => {
-        if (participant.participantType === 'wrestler') {
-          const [wrestler] = await db.select().from(wrestlers).where(eq(wrestlers.id, participant.participantId));
-          return { ...participant, participant: wrestler };
-        } else {
-          const [tagTeam] = await db.select().from(tagTeams).where(eq(tagTeams.id, participant.participantId));
-          return { ...participant, participant: tagTeam };
-        }
-      })
-    );
-
-    result.participants = enrichedParticipants;
-  }
-
-  if (includeChampionships) {
-    const matchChampionships = await db
-      .select({
-        id: matchCombatantChampionships.id,
-        matchId: matchCombatantChampionships.matchId,
-        championshipId: matchCombatantChampionships.championshipId,
-        participantType: matchCombatantChampionships.participantType,
-        participantId: matchCombatantChampionships.participantId,
-        championship: championships,
-      })
-      .from(matchCombatantChampionships)
-      .leftJoin(championships, eq(matchCombatantChampionships.championshipId, championships.id))
-      .where(eq(matchCombatantChampionships.matchId, params.id));
-
-    result.championships = matchChampionships;
-  }
-
-  return apiSuccess(result);
+  return apiSuccess(match);
 });
 
 /**
@@ -100,36 +48,9 @@ export const PATCH = apiHandler(async (req: NextRequest, { params }) => {
     throw apiError('No fields to update');
   }
 
-  // If setting a winner, verify the match is part of a locked or completed event
-  if (body.outcome || body.winningSide !== undefined || body.winnerParticipantId !== undefined) {
-    const [match] = await db.select().from(matches).where(eq(matches.id, params.id));
+  const match = await matchService.update(params.id, body);
 
-    if (!match) {
-      throw apiError('Match not found', 404);
-    }
-
-    const [event] = await db.select().from(events).where(eq(events.id, match.eventId));
-
-    if (event && event.status === 'open') {
-      throw apiError('Cannot set match results for an open event. Lock the event first.');
-    }
-  }
-
-  const updateData: Record<string, unknown> = { updatedAt: new Date() };
-
-  if (body.matchType !== undefined) updateData.matchType = body.matchType;
-  if (body.matchOrder !== undefined) updateData.matchOrder = body.matchOrder;
-  if (body.outcome !== undefined) updateData.outcome = body.outcome;
-  if (body.winningSide !== undefined) updateData.winningSide = body.winningSide;
-  if (body.winnerParticipantId !== undefined) updateData.winnerParticipantId = body.winnerParticipantId;
-
-  const [updatedMatch] = await db.update(matches).set(updateData).where(eq(matches.id, params.id)).returning();
-
-  if (!updatedMatch) {
-    throw apiError('Match not found', 404);
-  }
-
-  return apiSuccess(updatedMatch);
+  return apiSuccess(match);
 }, { requireAdmin: true });
 
 /**
@@ -141,20 +62,7 @@ export const DELETE = apiHandler(async (_req, { params }) => {
     throw apiError('Match ID is required');
   }
 
-  // Verify match is part of an open event
-  const [match] = await db.select().from(matches).where(eq(matches.id, params.id));
-
-  if (!match) {
-    throw apiError('Match not found', 404);
-  }
-
-  const [event] = await db.select().from(events).where(eq(events.id, match.eventId));
-
-  if (event && event.status !== 'open') {
-    throw apiError('Cannot delete matches from a locked or completed event');
-  }
-
-  const [deletedMatch] = await db.delete(matches).where(eq(matches.id, params.id)).returning();
+  await matchService.delete(params.id);
 
   return apiSuccess({ message: 'Match deleted successfully', id: params.id });
 }, { requireAdmin: true });

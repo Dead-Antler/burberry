@@ -1,9 +1,7 @@
 import { NextRequest } from 'next/server';
-import { db } from '@/app/lib/db';
-import { championships } from '@/app/lib/schema';
-import { eq } from 'drizzle-orm';
 import { apiHandler, apiSuccess, apiError, parseBodyWithSchema } from '@/app/lib/api-helpers';
 import { updateChampionshipSchema } from '@/app/lib/validation-schemas';
+import { championshipService } from '@/app/lib/services/championship.service';
 
 /**
  * GET /api/championships/:id
@@ -14,11 +12,7 @@ export const GET = apiHandler(async (_req, { params }) => {
     throw apiError('Championship ID is required');
   }
 
-  const [championship] = await db.select().from(championships).where(eq(championships.id, params.id));
-
-  if (!championship) {
-    throw apiError('Championship not found', 404);
-  }
+  const championship = await championshipService.getById(params.id);
 
   return apiSuccess(championship);
 });
@@ -38,23 +32,9 @@ export const PATCH = apiHandler(async (req: NextRequest, { params }) => {
     throw apiError('No fields to update');
   }
 
-  const updateData: Record<string, unknown> = { updatedAt: new Date() };
+  const championship = await championshipService.update(params.id, body);
 
-  if (body.name !== undefined) updateData.name = body.name;
-  if (body.brandId !== undefined) updateData.brandId = body.brandId;
-  if (body.isActive !== undefined) updateData.isActive = body.isActive;
-
-  const [updatedChampionship] = await db
-    .update(championships)
-    .set(updateData)
-    .where(eq(championships.id, params.id))
-    .returning();
-
-  if (!updatedChampionship) {
-    throw apiError('Championship not found', 404);
-  }
-
-  return apiSuccess(updatedChampionship);
+  return apiSuccess(championship);
 }, { requireAdmin: true });
 
 /**
@@ -66,18 +46,7 @@ export const DELETE = apiHandler(async (_req, { params }) => {
     throw apiError('Championship ID is required');
   }
 
-  const [updatedChampionship] = await db
-    .update(championships)
-    .set({
-      isActive: false,
-      updatedAt: new Date(),
-    })
-    .where(eq(championships.id, params.id))
-    .returning();
-
-  if (!updatedChampionship) {
-    throw apiError('Championship not found', 404);
-  }
+  await championshipService.delete(params.id);
 
   return apiSuccess({ message: 'Championship deactivated successfully', id: params.id });
 }, { requireAdmin: true });
