@@ -250,13 +250,19 @@ export const matchPredictionService = {
 // Custom Prediction Service
 // ============================================================================
 
-const PREDICTION_TYPE_FIELD_MAP: Record<string, keyof CreateCustomPredictionInput> = {
+const PREDICTION_TYPE_FIELD_MAP = {
   time: 'predictionTime',
   count: 'predictionCount',
   wrestler: 'predictionWrestlerId',
   boolean: 'predictionBoolean',
   text: 'predictionText',
-};
+} as const satisfies Record<string, keyof CreateCustomPredictionInput>;
+
+type PredictionType = keyof typeof PREDICTION_TYPE_FIELD_MAP;
+
+function isPredictionType(value: string): value is PredictionType {
+  return value in PREDICTION_TYPE_FIELD_MAP;
+}
 
 const ALL_PREDICTION_FIELDS = [
   'predictionTime',
@@ -266,21 +272,22 @@ const ALL_PREDICTION_FIELDS = [
   'predictionText',
 ] as const;
 
-type PredictionFieldKey = typeof ALL_PREDICTION_FIELDS[number];
+type PredictionFieldKey = (typeof ALL_PREDICTION_FIELDS)[number];
+
+// Type that represents input with a specific required field defined
+type ValidatedInput<T extends PredictionFieldKey> = CreateCustomPredictionInput &
+  Required<Pick<CreateCustomPredictionInput, T>>;
 
 /**
  * Validate that ONLY the correct prediction field is set for the given type
+ * Uses TypeScript assertion to provide compile-time guarantee that the required field is set
  * @throws 400 if required field is missing or extra fields are provided
  */
-function validatePredictionTypeField(
-  predictionType: string,
+function validatePredictionTypeField<T extends PredictionType>(
+  predictionType: T,
   input: CreateCustomPredictionInput
-): void {
-  const requiredField = PREDICTION_TYPE_FIELD_MAP[predictionType] as PredictionFieldKey | undefined;
-
-  if (!requiredField) {
-    throw apiError(`Unknown prediction type: ${predictionType}`, 400);
-  }
+): asserts input is ValidatedInput<(typeof PREDICTION_TYPE_FIELD_MAP)[T]> {
+  const requiredField = PREDICTION_TYPE_FIELD_MAP[predictionType];
 
   // Type-safe access to the input field
   const inputRecord = input as unknown as Record<string, unknown>;
@@ -369,6 +376,11 @@ export const customPredictionService = {
     }
 
     const predictionType = eventPrediction.template.predictionType;
+
+    // Validate prediction type is known
+    if (!isPredictionType(predictionType)) {
+      throw apiError(`Unknown prediction type: ${predictionType}`, 400);
+    }
 
     // Validate correct field is provided and no extra fields
     validatePredictionTypeField(predictionType, input);

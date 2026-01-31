@@ -283,7 +283,10 @@ export async function ensureEventStatus(
   const allowedStatuses = Array.isArray(requiredStatus) ? requiredStatus : [requiredStatus];
 
   if (!allowedStatuses.includes(event.status as EventStatus)) {
-    const statusList = allowedStatuses.join(' or ');
+    const statusList =
+      allowedStatuses.length > 1
+        ? allowedStatuses.slice(0, -1).join(', ') + ' or ' + allowedStatuses.slice(-1)
+        : allowedStatuses[0];
     throw apiError(`Cannot ${operation} - event must be ${statusList}`, 400);
   }
 
