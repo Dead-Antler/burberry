@@ -1,0 +1,7 @@
+[test]
+preload = ["./tests/setup.ts"]
+
+# Use in-memory SQLite for tests
+[test.env]
+DB_FILE_NAME = ":memory:"
+AUTH_SECRET = "test-secret-for-testing-only-32chars"
