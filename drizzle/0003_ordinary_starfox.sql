@@ -1,0 +1,1 @@
+CREATE INDEX `events_status_eventDate_idx` ON `events` (`status`,`eventDate`);

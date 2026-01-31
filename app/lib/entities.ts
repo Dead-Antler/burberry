@@ -257,3 +257,54 @@ export function updatedTimestamp() {
     updatedAt: new Date(),
   };
 }
+
+// ============================================================================
+// Event Status Helpers
+// ============================================================================
+
+import { events, matches } from './schema';
+
+export type EventStatus = 'open' | 'locked' | 'completed';
+
+/**
+ * Ensure an event has the required status
+ * @param eventId - The event ID to check
+ * @param requiredStatus - Single status or array of allowed statuses
+ * @param operation - Description of the operation for error message
+ * @throws 404 if event not found
+ * @throws 400 if event status doesn't match
+ */
+export async function ensureEventStatus(
+  eventId: string,
+  requiredStatus: EventStatus | EventStatus[],
+  operation: string
+): Promise<typeof events.$inferSelect> {
+  const event = await ensureExists(events, eventId, 'Event');
+  const allowedStatuses = Array.isArray(requiredStatus) ? requiredStatus : [requiredStatus];
+
+  if (!allowedStatuses.includes(event.status as EventStatus)) {
+    const statusList = allowedStatuses.join(' or ');
+    throw apiError(`Cannot ${operation} - event must be ${statusList}`, 400);
+  }
+
+  return event;
+}
+
+/**
+ * Get match and ensure its event has the required status
+ * @param matchId - The match ID to check
+ * @param requiredStatus - Single status or array of allowed statuses
+ * @param operation - Description of the operation for error message
+ * @throws 404 if match or event not found
+ * @throws 400 if event status doesn't match
+ */
+export async function ensureEventStatusForMatch(
+  matchId: string,
+  requiredStatus: EventStatus | EventStatus[],
+  operation: string
+): Promise<{ match: typeof matches.$inferSelect; event: typeof events.$inferSelect }> {
+  const match = await ensureExists(matches, matchId, 'Match');
+  const event = await ensureEventStatus(match.eventId, requiredStatus, operation);
+
+  return { match, event };
+}

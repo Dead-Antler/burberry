@@ -96,6 +96,7 @@ export const events = sqliteTable('events', {
 }, (table) => ({
   brandIdx: index('events_brandId_idx').on(table.brandId),
   statusIdx: index('events_status_idx').on(table.status),
+  statusEventDateIdx: index('events_status_eventDate_idx').on(table.status, table.eventDate),
 }));
 
 export const matches = sqliteTable('matches', {

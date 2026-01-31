@@ -12,10 +12,20 @@ import {
   eventCustomPredictions,
   customPredictionTemplates,
   userEventContrarian,
+  wrestlers,
 } from '../schema';
 import { eq, and, inArray } from 'drizzle-orm';
 import { generateId, apiError } from '../api-helpers';
-import { ensureExists, ensureOwnership, timestamps, updatedTimestamp } from '../entities';
+import {
+  ensureExists,
+  ensureOwnership,
+  ensureForeignKey,
+  ensureEventStatus,
+  ensureEventStatusForMatch,
+  withTransaction,
+  timestamps,
+  updatedTimestamp,
+} from '../entities';
 
 // ============================================================================
 // Common Helpers
@@ -26,11 +36,8 @@ import { ensureExists, ensureOwnership, timestamps, updatedTimestamp } from '../
  * @throws 404 if event not found
  * @throws 400 if event is not open
  */
-async function requireEventOpen(eventId: string): Promise<void> {
-  const event = await ensureExists(events, eventId, 'Event');
-  if (event.status !== 'open') {
-    throw apiError('Cannot modify predictions for a locked or completed event', 400);
-  }
+async function requireEventOpen(eventId: string): Promise<typeof events.$inferSelect> {
+  return ensureEventStatus(eventId, 'open', 'modify predictions for a locked or completed event');
 }
 
 /**
@@ -38,10 +45,10 @@ async function requireEventOpen(eventId: string): Promise<void> {
  * @throws 404 if match or event not found
  * @throws 400 if event is not open
  */
-async function requireMatchEventOpen(matchId: string): Promise<{ matchId: string; eventId: string }> {
-  const match = await ensureExists(matches, matchId, 'Match');
-  await requireEventOpen(match.eventId);
-  return { matchId: match.id, eventId: match.eventId };
+async function requireMatchEventOpen(
+  matchId: string
+): Promise<{ match: typeof matches.$inferSelect; event: typeof events.$inferSelect }> {
+  return ensureEventStatusForMatch(matchId, 'open', 'modify predictions for a locked or completed event');
 }
 
 // ============================================================================
@@ -141,39 +148,55 @@ export const matchPredictionService = {
 
   /**
    * Create or update a match prediction (upsert)
+   * Uses transaction to prevent TOCTOU race condition where event could be
+   * locked between status check and prediction write
    * @throws 404 if match or event not found
    * @throws 400 if event is not open
    */
-  async createOrUpdate(userId: string, input: CreateMatchPredictionInput) {
-    // Validate match exists and event is open
-    await requireMatchEventOpen(input.matchId);
+  async createOrUpdate(
+    userId: string,
+    input: CreateMatchPredictionInput
+  ): Promise<typeof matchPredictions.$inferSelect> {
+    return withTransaction<typeof matchPredictions.$inferSelect>(async (tx) => {
+      // Validate match exists within transaction
+      const [match] = await tx.select().from(matches).where(eq(matches.id, input.matchId));
+      if (!match) {
+        throw apiError('Match not found', 404);
+      }
 
-    const { createdAt, updatedAt } = timestamps();
+      // Check event status WITHIN transaction to prevent TOCTOU
+      const [event] = await tx.select().from(events).where(eq(events.id, match.eventId));
+      if (!event || event.status !== 'open') {
+        throw apiError('Cannot modify predictions for a locked or completed event', 400);
+      }
 
-    // Use upsert to handle race conditions
-    const [prediction] = await db
-      .insert(matchPredictions)
-      .values({
-        id: generateId('matchpred'),
-        userId,
-        matchId: input.matchId,
-        predictedSide: input.predictedSide ?? null,
-        predictedParticipantId: input.predictedParticipantId ?? null,
-        isCorrect: null,
-        createdAt,
-        updatedAt,
-      })
-      .onConflictDoUpdate({
-        target: [matchPredictions.userId, matchPredictions.matchId],
-        set: {
+      const { createdAt, updatedAt } = timestamps();
+
+      // Upsert in same transaction
+      const [prediction] = await tx
+        .insert(matchPredictions)
+        .values({
+          id: generateId('matchpred'),
+          userId,
+          matchId: input.matchId,
           predictedSide: input.predictedSide ?? null,
           predictedParticipantId: input.predictedParticipantId ?? null,
-          ...updatedTimestamp(),
-        },
-      })
-      .returning();
+          isCorrect: null,
+          createdAt,
+          updatedAt,
+        })
+        .onConflictDoUpdate({
+          target: [matchPredictions.userId, matchPredictions.matchId],
+          set: {
+            predictedSide: input.predictedSide ?? null,
+            predictedParticipantId: input.predictedParticipantId ?? null,
+            ...updatedTimestamp(),
+          },
+        })
+        .returning();
 
-    return prediction;
+      return prediction;
+    });
   },
 
   /**
@@ -235,6 +258,51 @@ const PREDICTION_TYPE_FIELD_MAP: Record<string, keyof CreateCustomPredictionInpu
   text: 'predictionText',
 };
 
+const ALL_PREDICTION_FIELDS = [
+  'predictionTime',
+  'predictionCount',
+  'predictionWrestlerId',
+  'predictionBoolean',
+  'predictionText',
+] as const;
+
+type PredictionFieldKey = typeof ALL_PREDICTION_FIELDS[number];
+
+/**
+ * Validate that ONLY the correct prediction field is set for the given type
+ * @throws 400 if required field is missing or extra fields are provided
+ */
+function validatePredictionTypeField(
+  predictionType: string,
+  input: CreateCustomPredictionInput
+): void {
+  const requiredField = PREDICTION_TYPE_FIELD_MAP[predictionType] as PredictionFieldKey | undefined;
+
+  if (!requiredField) {
+    throw apiError(`Unknown prediction type: ${predictionType}`, 400);
+  }
+
+  // Type-safe access to the input field
+  const inputRecord = input as unknown as Record<string, unknown>;
+
+  // Check required field is present (for create operations)
+  if (inputRecord[requiredField] === undefined) {
+    throw apiError(`${requiredField} is required for ${predictionType} predictions`, 400);
+  }
+
+  // Check no OTHER prediction fields are set
+  const extraFields = ALL_PREDICTION_FIELDS.filter(
+    (f) => f !== requiredField && inputRecord[f] != null
+  );
+
+  if (extraFields.length > 0) {
+    throw apiError(
+      `Invalid fields for ${predictionType} prediction: ${extraFields.join(', ')}`,
+      400
+    );
+  }
+}
+
 export const customPredictionService = {
   /**
    * Get user's custom predictions with optional filtering
@@ -275,11 +343,15 @@ export const customPredictionService = {
 
   /**
    * Create or update a custom prediction (upsert)
+   * Uses transaction to prevent TOCTOU race condition
    * @throws 404 if event custom prediction or event not found
-   * @throws 400 if event is not open or wrong field provided
+   * @throws 400 if event is not open, wrong field provided, or invalid wrestler ID
    */
-  async createOrUpdate(userId: string, input: CreateCustomPredictionInput) {
-    // Get event custom prediction with template
+  async createOrUpdate(
+    userId: string,
+    input: CreateCustomPredictionInput
+  ): Promise<{ prediction: typeof userCustomPredictions.$inferSelect; isNew: boolean }> {
+    // Get event custom prediction with template (outside transaction for validation)
     const [eventPrediction] = await db
       .select({
         eventCustomPrediction: eventCustomPredictions,
@@ -296,79 +368,91 @@ export const customPredictionService = {
       throw apiError('Custom prediction not found', 404);
     }
 
-    // Verify event is open
-    await requireEventOpen(eventPrediction.eventCustomPrediction.eventId);
-
-    // Validate correct field is provided based on template type
     const predictionType = eventPrediction.template.predictionType;
-    const requiredField = PREDICTION_TYPE_FIELD_MAP[predictionType];
 
-    if (!requiredField || input[requiredField] === undefined) {
-      throw apiError(`${requiredField} is required for ${predictionType} predictions`, 400);
+    // Validate correct field is provided and no extra fields
+    validatePredictionTypeField(predictionType, input);
+
+    // Validate wrestler foreign key if applicable
+    if (predictionType === 'wrestler' && input.predictionWrestlerId) {
+      await ensureForeignKey(wrestlers, input.predictionWrestlerId, 'Wrestler');
     }
 
-    // Check if prediction already exists
-    const [existingPrediction] = await db
-      .select()
-      .from(userCustomPredictions)
-      .where(
-        and(
-          eq(userCustomPredictions.userId, userId),
-          eq(userCustomPredictions.eventCustomPredictionId, input.eventCustomPredictionId)
-        )
-      );
+    // Use transaction to prevent TOCTOU race condition
+    return withTransaction<{ prediction: typeof userCustomPredictions.$inferSelect; isNew: boolean }>(async (tx) => {
+      // Check event status WITHIN transaction
+      const [event] = await tx
+        .select()
+        .from(events)
+        .where(eq(events.id, eventPrediction.eventCustomPrediction.eventId));
 
-    const { createdAt, updatedAt } = timestamps();
+      if (!event || event.status !== 'open') {
+        throw apiError('Cannot modify predictions for a locked or completed event', 400);
+      }
 
-    if (existingPrediction) {
-      // Update existing prediction
-      const [updated] = await db
-        .update(userCustomPredictions)
-        .set({
-          ...(input.predictionTime !== undefined && {
+      // Check if prediction already exists
+      const [existingPrediction] = await tx
+        .select()
+        .from(userCustomPredictions)
+        .where(
+          and(
+            eq(userCustomPredictions.userId, userId),
+            eq(userCustomPredictions.eventCustomPredictionId, input.eventCustomPredictionId)
+          )
+        );
+
+      const { createdAt, updatedAt } = timestamps();
+
+      if (existingPrediction) {
+        // Update existing prediction
+        const [updated] = await tx
+          .update(userCustomPredictions)
+          .set({
+            ...(input.predictionTime !== undefined && {
+              predictionTime: input.predictionTime ? new Date(input.predictionTime) : null,
+            }),
+            ...(input.predictionCount !== undefined && { predictionCount: input.predictionCount }),
+            ...(input.predictionWrestlerId !== undefined && {
+              predictionWrestlerId: input.predictionWrestlerId,
+            }),
+            ...(input.predictionBoolean !== undefined && {
+              predictionBoolean: input.predictionBoolean,
+            }),
+            ...(input.predictionText !== undefined && { predictionText: input.predictionText }),
+            ...updatedTimestamp(),
+          })
+          .where(eq(userCustomPredictions.id, existingPrediction.id))
+          .returning();
+
+        return { prediction: updated, isNew: false };
+      } else {
+        // Create new prediction
+        const [created] = await tx
+          .insert(userCustomPredictions)
+          .values({
+            id: generateId('custompred'),
+            userId,
+            eventCustomPredictionId: input.eventCustomPredictionId,
             predictionTime: input.predictionTime ? new Date(input.predictionTime) : null,
-          }),
-          ...(input.predictionCount !== undefined && { predictionCount: input.predictionCount }),
-          ...(input.predictionWrestlerId !== undefined && {
-            predictionWrestlerId: input.predictionWrestlerId,
-          }),
-          ...(input.predictionBoolean !== undefined && {
-            predictionBoolean: input.predictionBoolean,
-          }),
-          ...(input.predictionText !== undefined && { predictionText: input.predictionText }),
-          ...updatedTimestamp(),
-        })
-        .where(eq(userCustomPredictions.id, existingPrediction.id))
-        .returning();
+            predictionCount: input.predictionCount ?? null,
+            predictionWrestlerId: input.predictionWrestlerId ?? null,
+            predictionBoolean: input.predictionBoolean ?? null,
+            predictionText: input.predictionText ?? null,
+            isCorrect: null,
+            createdAt,
+            updatedAt,
+          })
+          .returning();
 
-      return { prediction: updated, isNew: false };
-    } else {
-      // Create new prediction
-      const [created] = await db
-        .insert(userCustomPredictions)
-        .values({
-          id: generateId('custompred'),
-          userId,
-          eventCustomPredictionId: input.eventCustomPredictionId,
-          predictionTime: input.predictionTime ? new Date(input.predictionTime) : null,
-          predictionCount: input.predictionCount ?? null,
-          predictionWrestlerId: input.predictionWrestlerId ?? null,
-          predictionBoolean: input.predictionBoolean ?? null,
-          predictionText: input.predictionText ?? null,
-          isCorrect: null,
-          createdAt,
-          updatedAt,
-        })
-        .returning();
-
-      return { prediction: created, isNew: true };
-    }
+        return { prediction: created, isNew: true };
+      }
+    });
   },
 
   /**
    * Update an existing custom prediction
    * @throws 404 if not found or not owned
-   * @throws 400 if event is not open or no fields to update
+   * @throws 400 if event is not open, no fields to update, or invalid wrestler ID
    */
   async update(id: string, userId: string, input: UpdateCustomPredictionInput) {
     if (
@@ -379,6 +463,11 @@ export const customPredictionService = {
       input.predictionText === undefined
     ) {
       throw apiError('No fields to update', 400);
+    }
+
+    // Validate wrestler foreign key if provided
+    if (input.predictionWrestlerId) {
+      await ensureForeignKey(wrestlers, input.predictionWrestlerId, 'Wrestler');
     }
 
     // Verify ownership

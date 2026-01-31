@@ -146,10 +146,10 @@ export const eventDetailQuerySchema = z.object({
 // ============================================================================
 
 export const matchParticipantSchema = z.object({
-  side: z.number().int().positive().nullable().or(z.null()),
+  side: z.number().int().positive().nullable(),
   participantType: participantTypeSchema,
   participantId: z.string().min(1),
-  entryOrder: z.number().int().positive().nullable().or(z.null()).optional(),
+  entryOrder: z.number().int().positive().nullable().optional(),
 });
 
 export const matchChampionshipSchema = z.object({
@@ -175,17 +175,17 @@ export const updateMatchSchema = z.object({
 });
 
 export const addMatchParticipantSchema = z.object({
-  side: z.number().int().positive().nullable().or(z.null()),
+  side: z.number().int().positive().nullable(),
   participantType: participantTypeSchema,
   participantId: z.string().min(1),
-  entryOrder: z.number().int().positive().nullable().or(z.null()).optional(),
+  entryOrder: z.number().int().positive().nullable().optional(),
 });
 
 export const updateMatchParticipantSchema = z.object({
-  side: z.number().int().positive().nullable().or(z.null()).optional(),
+  side: z.number().int().positive().nullable().optional(),
   participantType: participantTypeSchema.optional(),
   participantId: z.string().min(1).optional(),
-  entryOrder: z.number().int().positive().nullable().or(z.null()).optional(),
+  entryOrder: z.number().int().positive().nullable().optional(),
 });
 
 // ============================================================================

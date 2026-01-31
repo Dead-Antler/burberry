@@ -58,6 +58,240 @@ const VALID_STATUS_TRANSITIONS: Record<string, string[]> = {
   completed: [],
 };
 
+// ============================================================================
+// Scoring Helper Types
+// ============================================================================
+
+type MatchRecord = typeof matches.$inferSelect;
+type MatchPredictionRecord = typeof matchPredictions.$inferSelect;
+type EventCustomPredictionRecord = typeof eventCustomPredictions.$inferSelect;
+type UserCustomPredictionRecord = typeof userCustomPredictions.$inferSelect;
+type CustomPredictionTemplateRecord = typeof customPredictionTemplates.$inferSelect;
+type ContrarianRecord = typeof userEventContrarian.$inferSelect;
+
+// ============================================================================
+// Scoring Helper Functions
+// ============================================================================
+
+/**
+ * Evaluate if a custom prediction is correct based on type
+ */
+function evaluateCustomPrediction(
+  predictionType: string,
+  userPrediction: UserCustomPredictionRecord,
+  answer: EventCustomPredictionRecord
+): boolean {
+  switch (predictionType) {
+    case 'time':
+      return userPrediction.predictionTime?.getTime() === answer.answerTime?.getTime();
+    case 'count':
+      return userPrediction.predictionCount === answer.answerCount;
+    case 'wrestler':
+      return userPrediction.predictionWrestlerId === answer.answerWrestlerId;
+    case 'boolean':
+      return userPrediction.predictionBoolean === answer.answerBoolean;
+    case 'text':
+      return userPrediction.predictionText?.toLowerCase() === answer.answerText?.toLowerCase();
+    default:
+      return false;
+  }
+}
+
+/**
+ * Score all match predictions for an event
+ * Optimized: batch fetches all predictions in one query, updates in single transaction
+ */
+async function scoreMatchPredictions(
+  eventMatches: MatchRecord[],
+  matchIds: string[]
+): Promise<number> {
+  if (matchIds.length === 0) return 0;
+
+  // Batch fetch ALL predictions for all matches in one query
+  const allPredictions = await db
+    .select()
+    .from(matchPredictions)
+    .where(inArray(matchPredictions.matchId, matchIds));
+
+  if (allPredictions.length === 0) return 0;
+
+  // Group predictions by matchId for efficient lookup
+  const predictionsByMatch = new Map<string, MatchPredictionRecord[]>();
+  for (const pred of allPredictions) {
+    if (!predictionsByMatch.has(pred.matchId)) {
+      predictionsByMatch.set(pred.matchId, []);
+    }
+    predictionsByMatch.get(pred.matchId)!.push(pred);
+  }
+
+  // Create lookup map for matches
+  const matchMap = new Map(eventMatches.map((m) => [m.id, m]));
+
+  // Calculate correctness for all predictions in memory
+  const updates: { id: string; isCorrect: boolean }[] = [];
+
+  for (const [matchId, predictions] of predictionsByMatch) {
+    const match = matchMap.get(matchId);
+    if (!match) continue;
+
+    for (const prediction of predictions) {
+      let isCorrect = false;
+
+      if (match.outcome === 'winner') {
+        if (match.winningSide !== null) {
+          // Team-based match
+          isCorrect = prediction.predictedSide === match.winningSide;
+        } else if (match.winnerParticipantId !== null) {
+          // Free-for-all match
+          isCorrect = prediction.predictedParticipantId === match.winnerParticipantId;
+        }
+      }
+      // Draw or no contest = incorrect
+
+      updates.push({ id: prediction.id, isCorrect });
+    }
+  }
+
+  // Batch update all predictions in a single transaction
+  if (updates.length > 0) {
+    await withTransaction(async (tx) => {
+      for (const update of updates) {
+        await tx
+          .update(matchPredictions)
+          .set({ isCorrect: update.isCorrect })
+          .where(eq(matchPredictions.id, update.id));
+      }
+    });
+  }
+
+  return updates.length;
+}
+
+/**
+ * Score all custom predictions for an event
+ * Optimized: batch fetches and updates
+ */
+async function scoreCustomPredictions(eventId: string): Promise<number> {
+  // Fetch event custom predictions with templates
+  const customPreds = await db
+    .select({
+      eventCustomPrediction: eventCustomPredictions,
+      template: customPredictionTemplates,
+    })
+    .from(eventCustomPredictions)
+    .leftJoin(
+      customPredictionTemplates,
+      eq(eventCustomPredictions.templateId, customPredictionTemplates.id)
+    )
+    .where(eq(eventCustomPredictions.eventId, eventId));
+
+  // Filter to only scored predictions with valid templates
+  const scoredPredictions = customPreds.filter(
+    ({ template, eventCustomPrediction }) => template && eventCustomPrediction.isScored
+  );
+
+  if (scoredPredictions.length === 0) return 0;
+
+  const scoredPredictionIds = scoredPredictions.map(({ eventCustomPrediction }) => eventCustomPrediction.id);
+
+  // Batch fetch all user predictions in one query
+  const allUserPredictions = await db
+    .select()
+    .from(userCustomPredictions)
+    .where(inArray(userCustomPredictions.eventCustomPredictionId, scoredPredictionIds));
+
+  if (allUserPredictions.length === 0) return 0;
+
+  // Group user predictions by eventCustomPredictionId
+  const predictionsByEventPredId = new Map<string, UserCustomPredictionRecord[]>();
+  for (const pred of allUserPredictions) {
+    const key = pred.eventCustomPredictionId;
+    if (!predictionsByEventPredId.has(key)) {
+      predictionsByEventPredId.set(key, []);
+    }
+    predictionsByEventPredId.get(key)!.push(pred);
+  }
+
+  // Calculate correctness in memory
+  const updates: { id: string; isCorrect: boolean }[] = [];
+
+  for (const { eventCustomPrediction, template } of scoredPredictions) {
+    const userPreds = predictionsByEventPredId.get(eventCustomPrediction.id) || [];
+
+    for (const userPrediction of userPreds) {
+      const isCorrect = evaluateCustomPrediction(
+        template!.predictionType,
+        userPrediction,
+        eventCustomPrediction
+      );
+      updates.push({ id: userPrediction.id, isCorrect });
+    }
+  }
+
+  // Batch update in single transaction
+  if (updates.length > 0) {
+    await withTransaction(async (tx) => {
+      for (const update of updates) {
+        await tx
+          .update(userCustomPredictions)
+          .set({ isCorrect: update.isCorrect })
+          .where(eq(userCustomPredictions.id, update.id));
+      }
+    });
+  }
+
+  return updates.length;
+}
+
+/**
+ * Score contrarian mode for all users in an event
+ * Users win contrarian if ALL their predictions are incorrect
+ */
+async function scoreContrarian(eventId: string, matchIds: string[]): Promise<number> {
+  // Get all contrarian users for this event
+  const contrarianUsers = await db
+    .select()
+    .from(userEventContrarian)
+    .where(and(eq(userEventContrarian.eventId, eventId), eq(userEventContrarian.isContrarian, true)));
+
+  if (contrarianUsers.length === 0 || matchIds.length === 0) return 0;
+
+  const userIds = contrarianUsers.map((u) => u.userId);
+
+  // Batch fetch all predictions for contrarian users
+  const allContrarianPredictions = await db
+    .select()
+    .from(matchPredictions)
+    .where(and(inArray(matchPredictions.userId, userIds), inArray(matchPredictions.matchId, matchIds)));
+
+  // Group by userId
+  const predictionsByUser = new Map<string, MatchPredictionRecord[]>();
+  for (const pred of allContrarianPredictions) {
+    if (!predictionsByUser.has(pred.userId)) {
+      predictionsByUser.set(pred.userId, []);
+    }
+    predictionsByUser.get(pred.userId)!.push(pred);
+  }
+
+  // Calculate contrarian wins and update in transaction
+  await withTransaction(async (tx) => {
+    for (const contrarian of contrarianUsers) {
+      const userPredictions = predictionsByUser.get(contrarian.userId) || [];
+
+      // Win contrarian if user made predictions AND all are incorrect
+      const didWinContrarian =
+        userPredictions.length > 0 && userPredictions.every((p) => p.isCorrect === false);
+
+      await tx
+        .update(userEventContrarian)
+        .set({ didWinContrarian })
+        .where(eq(userEventContrarian.id, contrarian.id));
+    }
+  });
+
+  return contrarianUsers.length;
+}
+
 /**
  * Event Service
  */
@@ -299,6 +533,7 @@ export const eventService = {
 
   /**
    * Score all predictions for an event
+   * Optimized to batch fetch and update predictions
    * @throws 404 if event not found
    * @throws 400 if event is not completed
    */
@@ -314,182 +549,10 @@ export const eventService = {
     const eventMatches = await db.select().from(matches).where(eq(matches.eventId, eventId));
     const matchIds = eventMatches.map((m) => m.id);
 
-    let matchPredictionsScored = 0;
-
-    // Score match predictions using batch updates within a transaction
-    if (matchIds.length > 0) {
-      await withTransaction(async (tx) => {
-        for (const match of eventMatches) {
-          if (match.outcome === 'winner') {
-            // Fetch all predictions for this match
-            const predictions = await tx
-              .select()
-              .from(matchPredictions)
-              .where(eq(matchPredictions.matchId, match.id));
-
-            // Score team-based matches
-            if (match.winningSide !== null) {
-              for (const prediction of predictions) {
-                const isCorrect = prediction.predictedSide === match.winningSide;
-                await tx
-                  .update(matchPredictions)
-                  .set({ isCorrect })
-                  .where(eq(matchPredictions.id, prediction.id));
-                matchPredictionsScored++;
-              }
-            }
-            // Score free-for-all matches
-            else if (match.winnerParticipantId !== null) {
-              for (const prediction of predictions) {
-                const isCorrect = prediction.predictedParticipantId === match.winnerParticipantId;
-                await tx
-                  .update(matchPredictions)
-                  .set({ isCorrect })
-                  .where(eq(matchPredictions.id, prediction.id));
-                matchPredictionsScored++;
-              }
-            }
-          } else {
-            // Draw or no contest - all predictions are incorrect
-            const result = await tx
-              .update(matchPredictions)
-              .set({ isCorrect: false })
-              .where(eq(matchPredictions.matchId, match.id));
-            // Count updated rows (approximation)
-            matchPredictionsScored++;
-          }
-        }
-      });
-    }
-
-    // Score custom predictions
-    const customPreds = await db
-      .select({
-        eventCustomPrediction: eventCustomPredictions,
-        template: customPredictionTemplates,
-      })
-      .from(eventCustomPredictions)
-      .leftJoin(customPredictionTemplates, eq(eventCustomPredictions.templateId, customPredictionTemplates.id))
-      .where(eq(eventCustomPredictions.eventId, eventId));
-
-    let customPredictionsScored = 0;
-
-    // Get IDs of scored custom predictions
-    const scoredPredictionIds = customPreds
-      .filter(({ template, eventCustomPrediction }) => template && eventCustomPrediction.isScored)
-      .map(({ eventCustomPrediction }) => eventCustomPrediction.id);
-
-    if (scoredPredictionIds.length > 0) {
-      // Batch fetch all user predictions
-      const allUserPredictions = await db
-        .select()
-        .from(userCustomPredictions)
-        .where(inArray(userCustomPredictions.eventCustomPredictionId, scoredPredictionIds));
-
-      // Group by eventCustomPredictionId
-      const predictionsByEventId = new Map<string, typeof allUserPredictions>();
-      for (const pred of allUserPredictions) {
-        const key = pred.eventCustomPredictionId;
-        if (!predictionsByEventId.has(key)) {
-          predictionsByEventId.set(key, []);
-        }
-        predictionsByEventId.get(key)!.push(pred);
-      }
-
-      // Collect updates
-      const updates: { id: string; isCorrect: boolean }[] = [];
-
-      for (const { eventCustomPrediction, template } of customPreds) {
-        if (!template || !eventCustomPrediction.isScored) continue;
-
-        const userPreds = predictionsByEventId.get(eventCustomPrediction.id) || [];
-
-        for (const userPrediction of userPreds) {
-          let isCorrect = false;
-
-          switch (template.predictionType) {
-            case 'time':
-              isCorrect =
-                userPrediction.predictionTime?.getTime() === eventCustomPrediction.answerTime?.getTime();
-              break;
-            case 'count':
-              isCorrect = userPrediction.predictionCount === eventCustomPrediction.answerCount;
-              break;
-            case 'wrestler':
-              isCorrect = userPrediction.predictionWrestlerId === eventCustomPrediction.answerWrestlerId;
-              break;
-            case 'boolean':
-              isCorrect = userPrediction.predictionBoolean === eventCustomPrediction.answerBoolean;
-              break;
-            case 'text':
-              isCorrect =
-                userPrediction.predictionText?.toLowerCase() ===
-                eventCustomPrediction.answerText?.toLowerCase();
-              break;
-          }
-
-          updates.push({ id: userPrediction.id, isCorrect });
-        }
-      }
-
-      // Batch update within transaction
-      if (updates.length > 0) {
-        await withTransaction(async (tx) => {
-          for (const update of updates) {
-            await tx
-              .update(userCustomPredictions)
-              .set({ isCorrect: update.isCorrect })
-              .where(eq(userCustomPredictions.id, update.id));
-          }
-        });
-        customPredictionsScored = updates.length;
-      }
-    }
-
-    // Score contrarian mode
-    const contrarianUsers = await db
-      .select()
-      .from(userEventContrarian)
-      .where(and(eq(userEventContrarian.eventId, eventId), eq(userEventContrarian.isContrarian, true)));
-
-    let contrarianScored = 0;
-
-    if (contrarianUsers.length > 0 && matchIds.length > 0) {
-      const userIds = contrarianUsers.map((u) => u.userId);
-
-      // Batch fetch all predictions for contrarian users
-      const allContrarianPredictions = await db
-        .select()
-        .from(matchPredictions)
-        .where(and(inArray(matchPredictions.userId, userIds), inArray(matchPredictions.matchId, matchIds)));
-
-      // Group by userId
-      const predictionsByUser = new Map<string, typeof allContrarianPredictions>();
-      for (const pred of allContrarianPredictions) {
-        if (!predictionsByUser.has(pred.userId)) {
-          predictionsByUser.set(pred.userId, []);
-        }
-        predictionsByUser.get(pred.userId)!.push(pred);
-      }
-
-      // Update in transaction
-      await withTransaction(async (tx) => {
-        for (const contrarian of contrarianUsers) {
-          const userPredictions = predictionsByUser.get(contrarian.userId) || [];
-
-          // Check if all predictions are incorrect
-          const allIncorrect =
-            userPredictions.length > 0 && userPredictions.every((p) => p.isCorrect === false);
-
-          await tx
-            .update(userEventContrarian)
-            .set({ didWinContrarian: allIncorrect })
-            .where(eq(userEventContrarian.id, contrarian.id));
-
-          contrarianScored++;
-        }
-      });
-    }
+    // Score using extracted helper functions
+    const matchPredictionsScored = await scoreMatchPredictions(eventMatches, matchIds);
+    const customPredictionsScored = await scoreCustomPredictions(eventId);
+    const contrarianScored = await scoreContrarian(eventId, matchIds);
 
     return {
       matchPredictionsScored,
