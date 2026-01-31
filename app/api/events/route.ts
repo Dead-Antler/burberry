@@ -1,8 +1,9 @@
 import { NextRequest } from 'next/server';
 import { db } from '@/app/lib/db';
 import { events, matches, matchParticipants, eventCustomPredictions } from '@/app/lib/schema';
-import { eq, gte, lte, and } from 'drizzle-orm';
-import { apiHandler, apiSuccess, parseBody, validateRequired, generateId, apiError } from '@/app/lib/api-helpers';
+import { eq, gte, lte, and, inArray } from 'drizzle-orm';
+import { apiHandler, apiSuccess, parseBodyWithSchema, parseQueryWithSchema, generateId, apiError } from '@/app/lib/api-helpers';
+import { createEventSchema, eventQuerySchema } from '@/app/lib/validation-schemas';
 
 /**
  * GET /api/events
@@ -16,49 +17,53 @@ import { apiHandler, apiSuccess, parseBody, validateRequired, generateId, apiErr
  */
 export const GET = apiHandler(async (req: NextRequest) => {
   const { searchParams } = new URL(req.url);
-  const brandId = searchParams.get('brandId');
-  const status = searchParams.get('status');
-  const fromDate = searchParams.get('fromDate');
-  const toDate = searchParams.get('toDate');
-  const includeMatches = searchParams.get('includeMatches') === 'true';
+  const query = parseQueryWithSchema(searchParams, eventQuerySchema);
 
-  let query = db.select().from(events);
   const conditions = [];
 
-  if (brandId) {
-    conditions.push(eq(events.brandId, brandId));
+  if (query.brandId) {
+    conditions.push(eq(events.brandId, query.brandId));
   }
 
-  if (status) {
-    conditions.push(eq(events.status, status));
+  if (query.status) {
+    conditions.push(eq(events.status, query.status));
   }
 
-  if (fromDate) {
-    conditions.push(gte(events.eventDate, new Date(fromDate)));
+  if (query.fromDate) {
+    conditions.push(gte(events.eventDate, new Date(query.fromDate)));
   }
 
-  if (toDate) {
-    conditions.push(lte(events.eventDate, new Date(toDate)));
+  if (query.toDate) {
+    conditions.push(lte(events.eventDate, new Date(query.toDate)));
   }
 
-  if (conditions.length > 0) {
-    query = query.where(and(...conditions)) as typeof query;
-  }
+  const includeMatches = query.includeMatches ?? false;
 
-  const allEvents = await query.orderBy(events.eventDate);
+  const allEvents = conditions.length > 0
+    ? await db.select().from(events).where(and(...conditions)).orderBy(events.eventDate)
+    : await db.select().from(events).orderBy(events.eventDate);
 
   if (includeMatches) {
-    const eventsWithMatches = await Promise.all(
-      allEvents.map(async (event) => {
-        const eventMatches = await db
-          .select()
-          .from(matches)
-          .where(eq(matches.eventId, event.id))
-          .orderBy(matches.matchOrder);
+    const eventIds = allEvents.map((e) => e.id);
+    const allMatches =
+      eventIds.length > 0
+        ? await db.select().from(matches).where(inArray(matches.eventId, eventIds)).orderBy(matches.matchOrder)
+        : [];
 
-        return { ...event, matches: eventMatches };
-      })
-    );
+    // Group matches by eventId
+    const matchesByEvent = new Map<string, typeof allMatches>();
+    for (const match of allMatches) {
+      if (!matchesByEvent.has(match.eventId)) {
+        matchesByEvent.set(match.eventId, []);
+      }
+      matchesByEvent.get(match.eventId)!.push(match);
+    }
+
+    // Build result
+    const eventsWithMatches = allEvents.map((event) => ({
+      ...event,
+      matches: matchesByEvent.get(event.id) || [],
+    }));
 
     return apiSuccess(eventsWithMatches);
   }
@@ -71,14 +76,7 @@ export const GET = apiHandler(async (req: NextRequest) => {
  * Create a new event
  */
 export const POST = apiHandler(async (req: NextRequest) => {
-  const body = await parseBody<{
-    name: string;
-    brandId: string;
-    eventDate: string | Date;
-    status?: 'open' | 'locked' | 'completed';
-  }>(req);
-
-  validateRequired(body, ['name', 'brandId', 'eventDate']);
+  const body = await parseBodyWithSchema(req, createEventSchema);
 
   const id = generateId('event');
   const now = new Date();

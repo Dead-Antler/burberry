@@ -2,7 +2,8 @@ import { NextRequest } from 'next/server';
 import { db } from '@/app/lib/db';
 import { matchPredictions, matches, events } from '@/app/lib/schema';
 import { eq, and } from 'drizzle-orm';
-import { apiHandler, apiSuccess, apiError, parseBody } from '@/app/lib/api-helpers';
+import { apiHandler, apiSuccess, apiError, parseBodyWithSchema } from '@/app/lib/api-helpers';
+import { updateMatchPredictionSchema } from '@/app/lib/validation-schemas';
 
 /**
  * GET /api/predictions/matches/:id
@@ -16,7 +17,7 @@ export const GET = apiHandler(async (_req, { params, session }) => {
   const [prediction] = await db
     .select()
     .from(matchPredictions)
-    .where(and(eq(matchPredictions.id, params.id), eq(matchPredictions.userId, session!.user!.id!)));
+    .where(and(eq(matchPredictions.id, params.id), eq(matchPredictions.userId, session.user.id)));
 
   if (!prediction) {
     throw apiError('Prediction not found', 404);
@@ -34,10 +35,7 @@ export const PATCH = apiHandler(async (req: NextRequest, { params, session }) =>
     throw apiError('Prediction ID is required');
   }
 
-  const body = await parseBody<{
-    predictedSide?: number | null;
-    predictedParticipantId?: string | null;
-  }>(req);
+  const body = await parseBodyWithSchema(req, updateMatchPredictionSchema);
 
   if (body.predictedSide === undefined && body.predictedParticipantId === undefined) {
     throw apiError('No fields to update');
@@ -47,7 +45,7 @@ export const PATCH = apiHandler(async (req: NextRequest, { params, session }) =>
   const [prediction] = await db
     .select()
     .from(matchPredictions)
-    .where(and(eq(matchPredictions.id, params.id), eq(matchPredictions.userId, session!.user!.id!)));
+    .where(and(eq(matchPredictions.id, params.id), eq(matchPredictions.userId, session.user.id)));
 
   if (!prediction) {
     throw apiError('Prediction not found', 404);
@@ -97,7 +95,7 @@ export const DELETE = apiHandler(async (_req, { params, session }) => {
   const [prediction] = await db
     .select()
     .from(matchPredictions)
-    .where(and(eq(matchPredictions.id, params.id), eq(matchPredictions.userId, session!.user!.id!)));
+    .where(and(eq(matchPredictions.id, params.id), eq(matchPredictions.userId, session.user.id)));
 
   if (!prediction) {
     throw apiError('Prediction not found', 404);

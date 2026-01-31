@@ -14,13 +14,16 @@ export const GET = apiHandler(async (req: NextRequest, { session }) => {
   const { searchParams } = new URL(req.url);
   const eventId = searchParams.get('eventId');
 
-  let query = db.select().from(userEventContrarian).where(eq(userEventContrarian.userId, session!.user!.id!));
-
+  const conditions = [eq(userEventContrarian.userId, session.user.id)];
   if (eventId) {
-    query = query.where(eq(userEventContrarian.eventId, eventId)) as typeof query;
+    conditions.push(eq(userEventContrarian.eventId, eventId));
   }
 
-  const contrarianRecords = await query;
+  const contrarianRecords = await db
+    .select()
+    .from(userEventContrarian)
+    .where(and(...conditions));
+
   return apiSuccess(contrarianRecords);
 });
 
@@ -47,7 +50,7 @@ export const POST = apiHandler(async (req: NextRequest, { session }) => {
     throw apiError('Cannot change contrarian mode for a locked or completed event');
   }
 
-  const userId = session!.user!.id!;
+  const userId = session.user.id;
 
   // If enabling contrarian mode, verify user hasn't made any predictions yet
   if (body.isContrarian) {

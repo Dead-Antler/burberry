@@ -1,7 +1,7 @@
 import { NextRequest } from 'next/server';
 import { db } from '@/app/lib/db';
 import { tagTeams, tagTeamMembers, wrestlers } from '@/app/lib/schema';
-import { eq, isNull } from 'drizzle-orm';
+import { eq, isNull, and, inArray } from 'drizzle-orm';
 import { apiHandler, apiSuccess, parseBody, validateRequired, generateId } from '@/app/lib/api-helpers';
 
 /**
@@ -18,38 +18,52 @@ export const GET = apiHandler(async (req: NextRequest) => {
   const isActive = searchParams.get('isActive');
   const includeMembers = searchParams.get('includeMembers') === 'true';
 
-  let query = db.select().from(tagTeams);
+  const conditions = [];
 
   if (brandId) {
-    query = query.where(eq(tagTeams.brandId, brandId)) as typeof query;
+    conditions.push(eq(tagTeams.brandId, brandId));
   }
 
   if (isActive !== null) {
     const activeStatus = isActive === 'true';
-    query = query.where(eq(tagTeams.isActive, activeStatus)) as typeof query;
+    conditions.push(eq(tagTeams.isActive, activeStatus));
   }
 
-  const allTagTeams = await query;
+  const allTagTeams = conditions.length > 0
+    ? await db.select().from(tagTeams).where(and(...conditions))
+    : await db.select().from(tagTeams);
 
   if (includeMembers) {
-    // Get current members for each tag team
-    const teamsWithMembers = await Promise.all(
-      allTagTeams.map(async (team) => {
-        const members = await db
-          .select({
-            id: tagTeamMembers.id,
-            wrestlerId: tagTeamMembers.wrestlerId,
-            wrestlerName: wrestlers.currentName,
-            joinedAt: tagTeamMembers.joinedAt,
-            leftAt: tagTeamMembers.leftAt,
-          })
-          .from(tagTeamMembers)
-          .leftJoin(wrestlers, eq(tagTeamMembers.wrestlerId, wrestlers.id))
-          .where(eq(tagTeamMembers.tagTeamId, team.id));
+    const teamIds = allTagTeams.map((t) => t.id);
+    const allMembers =
+      teamIds.length > 0
+        ? await db
+            .select({
+              id: tagTeamMembers.id,
+              tagTeamId: tagTeamMembers.tagTeamId,
+              wrestlerId: tagTeamMembers.wrestlerId,
+              wrestlerName: wrestlers.currentName,
+              joinedAt: tagTeamMembers.joinedAt,
+              leftAt: tagTeamMembers.leftAt,
+            })
+            .from(tagTeamMembers)
+            .leftJoin(wrestlers, eq(tagTeamMembers.wrestlerId, wrestlers.id))
+            .where(inArray(tagTeamMembers.tagTeamId, teamIds))
+        : [];
 
-        return { ...team, members };
-      })
-    );
+    // Group members by tagTeamId
+    const membersByTeam = new Map<string, typeof allMembers>();
+    for (const member of allMembers) {
+      if (!membersByTeam.has(member.tagTeamId)) {
+        membersByTeam.set(member.tagTeamId, []);
+      }
+      membersByTeam.get(member.tagTeamId)!.push(member);
+    }
+
+    const teamsWithMembers = allTagTeams.map((team) => ({
+      ...team,
+      members: membersByTeam.get(team.id) || [],
+    }));
 
     return apiSuccess(teamsWithMembers);
   }

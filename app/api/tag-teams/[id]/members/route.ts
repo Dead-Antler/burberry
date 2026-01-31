@@ -2,7 +2,8 @@ import { NextRequest } from 'next/server';
 import { db } from '@/app/lib/db';
 import { tagTeamMembers, wrestlers } from '@/app/lib/schema';
 import { eq, isNull, and } from 'drizzle-orm';
-import { apiHandler, apiSuccess, apiError, parseBody, validateRequired, generateId } from '@/app/lib/api-helpers';
+import { apiHandler, apiSuccess, apiError, parseBodyWithSchema, generateId } from '@/app/lib/api-helpers';
+import { addTagTeamMemberSchema } from '@/app/lib/validation-schemas';
 
 /**
  * GET /api/tag-teams/:id/members
@@ -18,7 +19,13 @@ export const GET = apiHandler(async (req: NextRequest, { params }) => {
   const { searchParams } = new URL(req.url);
   const currentOnly = searchParams.get('current') === 'true';
 
-  let query = db
+  const conditions = [eq(tagTeamMembers.tagTeamId, params.id)];
+
+  if (currentOnly) {
+    conditions.push(isNull(tagTeamMembers.leftAt));
+  }
+
+  const members = await db
     .select({
       id: tagTeamMembers.id,
       wrestlerId: tagTeamMembers.wrestlerId,
@@ -28,13 +35,8 @@ export const GET = apiHandler(async (req: NextRequest, { params }) => {
     })
     .from(tagTeamMembers)
     .leftJoin(wrestlers, eq(tagTeamMembers.wrestlerId, wrestlers.id))
-    .where(eq(tagTeamMembers.tagTeamId, params.id));
-
-  if (currentOnly) {
-    query = query.where(isNull(tagTeamMembers.leftAt)) as typeof query;
-  }
-
-  const members = await query.orderBy(tagTeamMembers.joinedAt);
+    .where(and(...conditions))
+    .orderBy(tagTeamMembers.joinedAt);
 
   return apiSuccess(members);
 });
@@ -48,12 +50,7 @@ export const POST = apiHandler(async (req: NextRequest, { params }) => {
     throw apiError('Tag team ID is required');
   }
 
-  const body = await parseBody<{
-    wrestlerId: string;
-    joinedAt?: string | Date;
-  }>(req);
-
-  validateRequired(body, ['wrestlerId']);
+  const body = await parseBodyWithSchema(req, addTagTeamMemberSchema);
 
   const joinedAt = body.joinedAt ? new Date(body.joinedAt) : new Date();
 

@@ -2,7 +2,8 @@ import { NextRequest } from 'next/server';
 import { db } from '@/app/lib/db';
 import { eventCustomPredictions, customPredictionTemplates } from '@/app/lib/schema';
 import { eq } from 'drizzle-orm';
-import { apiHandler, apiSuccess, apiError, parseBody, validateRequired, generateId } from '@/app/lib/api-helpers';
+import { apiHandler, apiSuccess, apiError, parseBodyWithSchema, generateId } from '@/app/lib/api-helpers';
+import { createEventCustomPredictionSchema } from '@/app/lib/validation-schemas';
 
 /**
  * GET /api/events/:id/custom-predictions
@@ -45,12 +46,7 @@ export const POST = apiHandler(async (req: NextRequest, { params }) => {
     throw apiError('Event ID is required');
   }
 
-  const body = await parseBody<{
-    templateId: string;
-    question: string;
-  }>(req);
-
-  validateRequired(body, ['templateId', 'question']);
+  const body = await parseBodyWithSchema(req, createEventCustomPredictionSchema);
 
   const now = new Date();
 
@@ -61,12 +57,12 @@ export const POST = apiHandler(async (req: NextRequest, { params }) => {
       eventId: params.id,
       templateId: body.templateId,
       question: body.question,
-      answerTime: null,
-      answerCount: null,
-      answerWrestlerId: null,
-      answerBoolean: null,
-      answerText: null,
-      isScored: false,
+      answerTime: body.answerTime ? new Date(body.answerTime) : null,
+      answerCount: body.answerCount ?? null,
+      answerWrestlerId: body.answerWrestlerId ?? null,
+      answerBoolean: body.answerBoolean ?? null,
+      answerText: body.answerText ?? null,
+      isScored: body.isScored ?? false,
       createdAt: now,
       updatedAt: now,
     })

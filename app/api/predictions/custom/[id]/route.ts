@@ -16,7 +16,7 @@ export const GET = apiHandler(async (_req, { params, session }) => {
   const [prediction] = await db
     .select()
     .from(userCustomPredictions)
-    .where(and(eq(userCustomPredictions.id, params.id), eq(userCustomPredictions.userId, session!.user!.id!)));
+    .where(and(eq(userCustomPredictions.id, params.id), eq(userCustomPredictions.userId, session.user.id)));
 
   if (!prediction) {
     throw apiError('Prediction not found', 404);
@@ -56,7 +56,7 @@ export const PATCH = apiHandler(async (req: NextRequest, { params, session }) =>
   const [prediction] = await db
     .select()
     .from(userCustomPredictions)
-    .where(and(eq(userCustomPredictions.id, params.id), eq(userCustomPredictions.userId, session!.user!.id!)));
+    .where(and(eq(userCustomPredictions.id, params.id), eq(userCustomPredictions.userId, session.user.id)));
 
   if (!prediction) {
     throw apiError('Prediction not found', 404);
@@ -112,7 +112,7 @@ export const DELETE = apiHandler(async (_req, { params, session }) => {
   const [prediction] = await db
     .select()
     .from(userCustomPredictions)
-    .where(and(eq(userCustomPredictions.id, params.id), eq(userCustomPredictions.userId, session!.user!.id!)));
+    .where(and(eq(userCustomPredictions.id, params.id), eq(userCustomPredictions.userId, session.user.id)));
 
   if (!prediction) {
     throw apiError('Prediction not found', 404);

@@ -2,7 +2,8 @@ import { NextRequest } from 'next/server';
 import { db } from '@/app/lib/db';
 import { matchParticipants } from '@/app/lib/schema';
 import { eq } from 'drizzle-orm';
-import { apiHandler, apiSuccess, apiError, parseBody } from '@/app/lib/api-helpers';
+import { apiHandler, apiSuccess, apiError, parseBodyWithSchema } from '@/app/lib/api-helpers';
+import { updateMatchParticipantSchema } from '@/app/lib/validation-schemas';
 
 /**
  * PATCH /api/matches/:id/participants/:participantId
@@ -13,18 +14,17 @@ export const PATCH = apiHandler(async (req: NextRequest, { params }) => {
     throw apiError('Match ID and participant ID are required');
   }
 
-  const body = await parseBody<{
-    side?: number | null;
-    entryOrder?: number | null;
-  }>(req);
+  const body = await parseBodyWithSchema(req, updateMatchParticipantSchema);
 
-  if (body.side === undefined && body.entryOrder === undefined) {
+  if (body.side === undefined && body.entryOrder === undefined && !body.participantType && !body.participantId) {
     throw apiError('No fields to update');
   }
 
   const updateData: Record<string, unknown> = {};
 
   if (body.side !== undefined) updateData.side = body.side;
+  if (body.participantType !== undefined) updateData.participantType = body.participantType;
+  if (body.participantId !== undefined) updateData.participantId = body.participantId;
   if (body.entryOrder !== undefined) updateData.entryOrder = body.entryOrder;
 
   const [updatedParticipant] = await db

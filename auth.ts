@@ -5,6 +5,9 @@ import { users } from './app/lib/schema';
 import { eq } from 'drizzle-orm';
 import bcrypt from 'bcryptjs';
 
+// Dummy hash for constant-time authentication (prevents timing attacks)
+const DUMMY_HASH = '$2a$10$abcdefghijklmnopqrstuvwxyz1234567890ABCDEFGHIJKLMNO';
+
 export const { handlers, signIn, signOut, auth } = NextAuth({
   session: {
     strategy: 'jwt',
@@ -29,16 +32,12 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
           .where(eq(users.email, credentials.email as string))
           .limit(1);
 
-        if (!user || user.length === 0) {
-          return null;
-        }
+        // Always perform bcrypt comparison (constant time) to prevent timing attacks
+        const hashedPassword = user && user.length > 0 ? user[0].password : DUMMY_HASH;
+        const passwordMatch = await bcrypt.compare(credentials.password as string, hashedPassword);
 
-        const passwordMatch = await bcrypt.compare(
-          credentials.password as string,
-          user[0].password
-        );
-
-        if (!passwordMatch) {
+        // Only succeed if user exists AND password matches
+        if (!user || user.length === 0 || !passwordMatch) {
           return null;
         }
 

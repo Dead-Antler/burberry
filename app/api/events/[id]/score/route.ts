@@ -9,7 +9,7 @@ import {
   customPredictionTemplates,
   userEventContrarian,
 } from '@/app/lib/schema';
-import { eq, and, sql } from 'drizzle-orm';
+import { eq, and, sql, inArray } from 'drizzle-orm';
 import { apiHandler, apiSuccess, apiError } from '@/app/lib/api-helpers';
 
 /**
@@ -81,47 +81,81 @@ export const POST = apiHandler(async (_req, { params }) => {
 
   let customPredictionsScored = 0;
 
-  for (const { eventCustomPrediction, template } of customPredictions) {
-    if (!template || !eventCustomPrediction.isScored) continue;
+  // Collect all eventCustomPredictionIds that need scoring
+  const predictionIds = customPredictions
+    .filter(({ template, eventCustomPrediction }) => template && eventCustomPrediction.isScored)
+    .map(({ eventCustomPrediction }) => eventCustomPrediction.id);
 
-    const predictionType = template.predictionType;
-
-    // Get all user predictions for this custom prediction
-    const userPredictions = await db
+  if (predictionIds.length > 0) {
+    // Fetch all user predictions in one query
+    const allUserPredictions = await db
       .select()
       .from(userCustomPredictions)
-      .where(eq(userCustomPredictions.eventCustomPredictionId, eventCustomPrediction.id));
+      .where(inArray(userCustomPredictions.eventCustomPredictionId, predictionIds));
 
-    for (const userPrediction of userPredictions) {
-      let isCorrect = false;
-
-      switch (predictionType) {
-        case 'time':
-          isCorrect =
-            userPrediction.predictionTime?.getTime() === eventCustomPrediction.answerTime?.getTime();
-          break;
-        case 'count':
-          isCorrect = userPrediction.predictionCount === eventCustomPrediction.answerCount;
-          break;
-        case 'wrestler':
-          isCorrect = userPrediction.predictionWrestlerId === eventCustomPrediction.answerWrestlerId;
-          break;
-        case 'boolean':
-          isCorrect = userPrediction.predictionBoolean === eventCustomPrediction.answerBoolean;
-          break;
-        case 'text':
-          // Case-insensitive text comparison
-          isCorrect =
-            userPrediction.predictionText?.toLowerCase() === eventCustomPrediction.answerText?.toLowerCase();
-          break;
+    // Group user predictions by eventCustomPredictionId for efficient processing
+    const predictionsByEventId = new Map<string, typeof allUserPredictions>();
+    for (const pred of allUserPredictions) {
+      const key = pred.eventCustomPredictionId;
+      if (!predictionsByEventId.has(key)) {
+        predictionsByEventId.set(key, []);
       }
+      predictionsByEventId.get(key)!.push(pred);
+    }
+
+    // Collect all updates to be performed
+    const updates: { id: string; isCorrect: boolean }[] = [];
+
+    // Process each custom prediction type
+    for (const { eventCustomPrediction, template } of customPredictions) {
+      if (!template || !eventCustomPrediction.isScored) continue;
+
+      const userPreds = predictionsByEventId.get(eventCustomPrediction.id) || [];
+      const predictionType = template.predictionType;
+
+      for (const userPrediction of userPreds) {
+        let isCorrect = false;
+
+        switch (predictionType) {
+          case 'time':
+            isCorrect =
+              userPrediction.predictionTime?.getTime() === eventCustomPrediction.answerTime?.getTime();
+            break;
+          case 'count':
+            isCorrect = userPrediction.predictionCount === eventCustomPrediction.answerCount;
+            break;
+          case 'wrestler':
+            isCorrect = userPrediction.predictionWrestlerId === eventCustomPrediction.answerWrestlerId;
+            break;
+          case 'boolean':
+            isCorrect = userPrediction.predictionBoolean === eventCustomPrediction.answerBoolean;
+            break;
+          case 'text':
+            // Case-insensitive text comparison
+            isCorrect =
+              userPrediction.predictionText?.toLowerCase() === eventCustomPrediction.answerText?.toLowerCase();
+            break;
+        }
+
+        updates.push({ id: userPrediction.id, isCorrect });
+      }
+    }
+
+    // Perform batch update using SQL CASE statement
+    if (updates.length > 0) {
+      const updateIds = updates.map((u) => u.id);
+      const caseStatements = updates.map((u) =>
+        sql`WHEN ${userCustomPredictions.id} = ${u.id} THEN ${u.isCorrect ? 1 : 0}`
+      );
 
       await db
         .update(userCustomPredictions)
-        .set({ isCorrect })
-        .where(eq(userCustomPredictions.id, userPrediction.id));
+        .set({
+          isCorrect: sql`CASE ${sql.join(caseStatements, sql` `)} END`,
+        })
+        .where(inArray(userCustomPredictions.id, updateIds));
 
-      customPredictionsScored++;
+      customPredictionsScored = updates.length;
     }
   }
 
@@ -142,13 +176,16 @@ export const POST = apiHandler(async (_req, { params }) => {
       continue;
     }
 
-    const userMatchPredictions = await db
+    // Fetch predictions with database-level filtering (no in-memory filter)
+    const eventMatchPredictions = await db
       .select()
       .from(matchPredictions)
-      .where(eq(matchPredictions.userId, contrarian.userId));
-
-    // Filter to only predictions for this event's matches
-    const eventMatchPredictions = userMatchPredictions.filter((p) => matchIds.includes(p.matchId));
+      .where(
+        and(
+          eq(matchPredictions.userId, contrarian.userId),
+          inArray(matchPredictions.matchId, matchIds)
+        )
+      );
 
     // Check if all predictions are incorrect (isCorrect === false)
     const allIncorrect =
@@ -189,15 +226,21 @@ export const GET = apiHandler(async (req: NextRequest, { params }) => {
 
   const matchIds = eventMatches.map((m) => m.id);
 
-  let matchPreds = await db.select().from(matchPredictions);
+  // Build query conditions for match predictions
+  const conditions = [];
 
   if (matchIds.length > 0) {
-    matchPreds = matchPreds.filter((p) => matchIds.includes(p.matchId));
+    conditions.push(inArray(matchPredictions.matchId, matchIds));
   }
 
   if (userId) {
-    matchPreds = matchPreds.filter((p) => p.userId === userId);
+    conditions.push(eq(matchPredictions.userId, userId));
   }
+
+  // Fetch predictions with database-level filtering (no in-memory filter)
+  const matchPreds = conditions.length > 0
+    ? await db.select().from(matchPredictions).where(and(...conditions))
+    : [];
 
   // Get all custom predictions for the event
   const customPreds = await db

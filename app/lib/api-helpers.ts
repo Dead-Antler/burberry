@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/auth';
 import { rateLimit } from './rate-limit';
+import type { Session } from 'next-auth';
 
 /**
  * Standard API error response
@@ -16,12 +17,30 @@ export function apiSuccess<T>(data: T, status: number = 200) {
   return NextResponse.json(data, { status });
 }
 
+// Use Session directly from next-auth instead of deriving from auth() return type
+// auth() has multiple overloads and TypeScript gets confused
+export type AuthSession = Session;
+
+export interface ApiHandlerContext {
+  session: AuthSession;
+  params?: Record<string, string>;
+}
+
+/**
+ * Helper to extract user ID from session with proper typing
+ */
+export function getUserId(session: AuthSession): string {
+  return session.user.id;
+}
+
 /**
  * Authentication middleware for API routes
  * Returns user session if authenticated, throws error response if not
  */
-export async function requireAuth(req: NextRequest) {
-  const session = await auth();
+export async function requireAuth(_req: NextRequest): Promise<AuthSession> {
+  // Call auth() with no args to get Session | null (not middleware)
+  const getSession = auth as () => Promise<Session | null>;
+  const session = await getSession();
 
   if (!session || !session.user?.id) {
     throw apiError('Unauthorized', 401);
@@ -34,7 +53,7 @@ export async function requireAuth(req: NextRequest) {
  * Admin authorization middleware for API routes
  * Returns user session if user is admin, throws error response if not
  */
-export async function requireAdmin(req: NextRequest) {
+export async function requireAdmin(req: NextRequest): Promise<AuthSession> {
   const session = await requireAuth(req);
 
   if (!session.user?.isAdmin) {
@@ -88,28 +107,34 @@ export function requireRateLimit(
  * Wrapper for API route handlers that provides error handling, auth, and rate limiting
  */
 export function apiHandler(
-  handler: (req: NextRequest, context: { session: Awaited<ReturnType<typeof auth>>; params?: Record<string, string> }) => Promise<NextResponse>,
-  options: {
+  handler: (
+    req: NextRequest,
+    context: {
+      session: AuthSession;
+      params?: Record<string, string>;
+    }
+  ) => Promise<NextResponse>,
+  options?: {
     requireAuth?: boolean;
     requireAdmin?: boolean;
     rateLimit?: { limit: number; windowMs: number; prefix?: string };
-  } = { requireAuth: true }
+  }
 ) {
   return async (req: NextRequest, context?: { params?: Promise<Record<string, string>> }) => {
     try {
       // Apply rate limiting if configured
-      if (options.rateLimit) {
+      if (options?.rateLimit) {
         requireRateLimit(req, options.rateLimit);
       }
 
-      // Apply authentication if required
-      let session = null;
-      if (options.requireAuth) {
+      // Apply authentication if required (default: true)
+      let session: AuthSession | null = null;
+      if (options?.requireAuth !== false) {
         session = await requireAuth(req);
       }
 
       // Apply admin check if required
-      if (options.requireAdmin) {
+      if (options?.requireAdmin) {
         session = await requireAdmin(req);
       }
 
@@ -117,7 +142,9 @@ export function apiHandler(
       const params = context?.params ? await context.params : undefined;
 
       // Call the handler
-      return await handler(req, { session, params });
+      // Type assertion needed because handler expects non-null session
+      // but we know it's non-null when requireAuth !== false (default behavior)
+      return await handler(req, { session: session as AuthSession, params });
     } catch (error) {
       // If error is already a NextResponse (from our helper functions), return it
       if (error instanceof NextResponse) {
@@ -133,9 +160,11 @@ export function apiHandler(
 
 /**
  * Generate a unique ID for database records
+ * Uses crypto.randomUUID() for cryptographically secure IDs
  */
 export function generateId(prefix: string): string {
-  return `${prefix}_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`;
+  const { randomUUID } = require('crypto');
+  return `${prefix}_${randomUUID()}`;
 }
 
 /**
@@ -159,5 +188,51 @@ export async function parseBody<T = unknown>(req: NextRequest): Promise<T> {
     return await req.json();
   } catch {
     throw apiError('Invalid JSON body');
+  }
+}
+
+/**
+ * Parse and validate request body with Zod schema
+ */
+export async function parseBodyWithSchema<T>(
+  req: NextRequest,
+  schema: { parse: (data: unknown) => T }
+): Promise<T> {
+  try {
+    const body = await req.json();
+    return schema.parse(body);
+  } catch (error: unknown) {
+    // Check if it's a Zod error
+    if (error && typeof error === 'object' && 'issues' in error) {
+      const zodError = error as { issues: Array<{ path: Array<string | number>; message: string }> };
+      const messages = zodError.issues
+        .map((err) => `${err.path.join('.')}: ${err.message}`)
+        .join(', ');
+      throw apiError(`Validation failed: ${messages}`, 400);
+    }
+    throw apiError('Invalid JSON body', 400);
+  }
+}
+
+/**
+ * Parse and validate query parameters with Zod schema
+ */
+export function parseQueryWithSchema<T>(
+  searchParams: URLSearchParams,
+  schema: { parse: (data: unknown) => T }
+): T {
+  try {
+    const queryObj = Object.fromEntries(searchParams.entries());
+    return schema.parse(queryObj);
+  } catch (error: unknown) {
+    // Check if it's a Zod error
+    if (error && typeof error === 'object' && 'issues' in error) {
+      const zodError = error as { issues: Array<{ path: Array<string | number>; message: string }> };
+      const messages = zodError.issues
+        .map((err) => `${err.path.join('.')}: ${err.message}`)
+        .join(', ');
+      throw apiError(`Invalid query parameters: ${messages}`, 400);
+    }
+    throw apiError('Invalid query parameters', 400);
   }
 }

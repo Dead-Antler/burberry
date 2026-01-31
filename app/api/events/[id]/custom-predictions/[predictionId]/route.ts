@@ -2,7 +2,8 @@ import { NextRequest } from 'next/server';
 import { db } from '@/app/lib/db';
 import { eventCustomPredictions, events } from '@/app/lib/schema';
 import { eq } from 'drizzle-orm';
-import { apiHandler, apiSuccess, apiError, parseBody } from '@/app/lib/api-helpers';
+import { apiHandler, apiSuccess, apiError, parseBodyWithSchema } from '@/app/lib/api-helpers';
+import { updateEventCustomPredictionSchema } from '@/app/lib/validation-schemas';
 
 /**
  * GET /api/events/:id/custom-predictions/:predictionId
@@ -34,15 +35,7 @@ export const PATCH = apiHandler(async (req: NextRequest, { params }) => {
     throw apiError('Event ID and prediction ID are required');
   }
 
-  const body = await parseBody<{
-    question?: string;
-    answerTime?: string | Date | null;
-    answerCount?: number | null;
-    answerWrestlerId?: string | null;
-    answerBoolean?: boolean | null;
-    answerText?: string | null;
-    isScored?: boolean;
-  }>(req);
+  const body = await parseBodyWithSchema(req, updateEventCustomPredictionSchema);
 
   if (
     !body.question &&

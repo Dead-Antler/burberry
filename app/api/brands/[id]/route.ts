@@ -2,7 +2,8 @@ import { NextRequest } from 'next/server';
 import { db } from '@/app/lib/db';
 import { brands } from '@/app/lib/schema';
 import { eq } from 'drizzle-orm';
-import { apiHandler, apiSuccess, apiError, parseBody } from '@/app/lib/api-helpers';
+import { apiHandler, apiSuccess, apiError, parseBodyWithSchema } from '@/app/lib/api-helpers';
+import { updateBrandSchema } from '@/app/lib/validation-schemas';
 
 /**
  * GET /api/brands/:id
@@ -31,7 +32,7 @@ export const PATCH = apiHandler(async (req: NextRequest, { params }) => {
     throw apiError('Brand ID is required');
   }
 
-  const body = await parseBody<{ name?: string }>(req);
+  const body = await parseBodyWithSchema(req, updateBrandSchema);
 
   if (!body.name) {
     throw apiError('No fields to update');

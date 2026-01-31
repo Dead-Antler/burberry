@@ -1,8 +1,9 @@
 import { NextRequest } from 'next/server';
 import { db } from '@/app/lib/db';
 import { championships } from '@/app/lib/schema';
-import { eq } from 'drizzle-orm';
-import { apiHandler, apiSuccess, parseBody, validateRequired, generateId } from '@/app/lib/api-helpers';
+import { eq, and } from 'drizzle-orm';
+import { apiHandler, apiSuccess, parseBodyWithSchema, parseQueryWithSchema, generateId } from '@/app/lib/api-helpers';
+import { createChampionshipSchema, championshipQuerySchema } from '@/app/lib/validation-schemas';
 
 /**
  * GET /api/championships
@@ -13,21 +14,22 @@ import { apiHandler, apiSuccess, parseBody, validateRequired, generateId } from 
  */
 export const GET = apiHandler(async (req: NextRequest) => {
   const { searchParams } = new URL(req.url);
-  const brandId = searchParams.get('brandId');
-  const isActive = searchParams.get('isActive');
+  const query = parseQueryWithSchema(searchParams, championshipQuerySchema);
 
-  let query = db.select().from(championships);
+  const conditions = [];
 
-  if (brandId) {
-    query = query.where(eq(championships.brandId, brandId)) as typeof query;
+  if (query.brandId) {
+    conditions.push(eq(championships.brandId, query.brandId));
   }
 
-  if (isActive !== null) {
-    const activeStatus = isActive === 'true';
-    query = query.where(eq(championships.isActive, activeStatus)) as typeof query;
+  if (query.isActive !== undefined) {
+    conditions.push(eq(championships.isActive, query.isActive));
   }
 
-  const allChampionships = await query;
+  const allChampionships = conditions.length > 0
+    ? await db.select().from(championships).where(and(...conditions))
+    : await db.select().from(championships);
+
   return apiSuccess(allChampionships);
 });
 
@@ -36,13 +38,7 @@ export const GET = apiHandler(async (req: NextRequest) => {
  * Create a new championship
  */
 export const POST = apiHandler(async (req: NextRequest) => {
-  const body = await parseBody<{
-    name: string;
-    brandId: string;
-    isActive?: boolean;
-  }>(req);
-
-  validateRequired(body, ['name', 'brandId']);
+  const body = await parseBodyWithSchema(req, createChampionshipSchema);
 
   const id = generateId('championship');
   const now = new Date();

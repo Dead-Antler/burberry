@@ -2,7 +2,8 @@ import { NextRequest } from 'next/server';
 import { db } from '@/app/lib/db';
 import { championships } from '@/app/lib/schema';
 import { eq } from 'drizzle-orm';
-import { apiHandler, apiSuccess, apiError, parseBody } from '@/app/lib/api-helpers';
+import { apiHandler, apiSuccess, apiError, parseBodyWithSchema } from '@/app/lib/api-helpers';
+import { updateChampionshipSchema } from '@/app/lib/validation-schemas';
 
 /**
  * GET /api/championships/:id
@@ -31,11 +32,7 @@ export const PATCH = apiHandler(async (req: NextRequest, { params }) => {
     throw apiError('Championship ID is required');
   }
 
-  const body = await parseBody<{
-    name?: string;
-    brandId?: string;
-    isActive?: boolean;
-  }>(req);
+  const body = await parseBodyWithSchema(req, updateChampionshipSchema);
 
   if (!body.name && !body.brandId && body.isActive === undefined) {
     throw apiError('No fields to update');

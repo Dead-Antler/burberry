@@ -2,7 +2,8 @@ import { NextRequest } from 'next/server';
 import { db } from '@/app/lib/db';
 import { matchParticipants, wrestlers, tagTeams } from '@/app/lib/schema';
 import { eq } from 'drizzle-orm';
-import { apiHandler, apiSuccess, apiError, parseBody, validateRequired, generateId } from '@/app/lib/api-helpers';
+import { apiHandler, apiSuccess, apiError, parseBodyWithSchema, generateId } from '@/app/lib/api-helpers';
+import { addMatchParticipantSchema } from '@/app/lib/validation-schemas';
 
 /**
  * GET /api/matches/:id/participants
@@ -40,14 +41,7 @@ export const POST = apiHandler(async (req: NextRequest, { params }) => {
     throw apiError('Match ID is required');
   }
 
-  const body = await parseBody<{
-    side: number | null;
-    participantType: 'wrestler' | 'tag_team';
-    participantId: string;
-    entryOrder?: number | null;
-  }>(req);
-
-  validateRequired(body, ['participantType', 'participantId']);
+  const body = await parseBodyWithSchema(req, addMatchParticipantSchema);
 
   const [newParticipant] = await db
     .insert(matchParticipants)

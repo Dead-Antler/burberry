@@ -16,10 +16,10 @@ export const GET = apiHandler(async (req: NextRequest, { session }) => {
   const eventId = searchParams.get('eventId');
   const eventCustomPredictionId = searchParams.get('eventCustomPredictionId');
 
-  let query = db.select().from(userCustomPredictions).where(eq(userCustomPredictions.userId, session!.user!.id!));
+  const conditions = [eq(userCustomPredictions.userId, session.user.id)];
 
   if (eventCustomPredictionId) {
-    query = query.where(eq(userCustomPredictions.eventCustomPredictionId, eventCustomPredictionId)) as typeof query;
+    conditions.push(eq(userCustomPredictions.eventCustomPredictionId, eventCustomPredictionId));
   } else if (eventId) {
     // Get all custom predictions for the event, then filter user predictions
     const eventPredictions = await db
@@ -33,15 +33,16 @@ export const GET = apiHandler(async (req: NextRequest, { session }) => {
       return apiSuccess([]);
     }
 
-    query = query.where(
-      and(
-        eq(userCustomPredictions.userId, session!.user!.id!),
-        ...predictionIds.map((id) => eq(userCustomPredictions.eventCustomPredictionId, id))
-      )
-    ) as typeof query;
+    // Add OR conditions for each prediction ID using inArray
+    const { inArray } = await import('drizzle-orm');
+    conditions.push(inArray(userCustomPredictions.eventCustomPredictionId, predictionIds));
   }
 
-  const predictions = await query;
+  const predictions = await db
+    .select()
+    .from(userCustomPredictions)
+    .where(and(...conditions));
+
   return apiSuccess(predictions);
 });
 
@@ -104,7 +105,7 @@ export const POST = apiHandler(async (req: NextRequest, { session }) => {
     throw apiError(`${requiredField} is required for ${predictionType} predictions`);
   }
 
-  const userId = session!.user!.id!;
+  const userId = session.user.id;
 
   // Check if prediction already exists
   const [existingPrediction] = await db

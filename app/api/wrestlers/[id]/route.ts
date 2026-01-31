@@ -2,7 +2,8 @@ import { NextRequest } from 'next/server';
 import { db } from '@/app/lib/db';
 import { wrestlers, wrestlerNames } from '@/app/lib/schema';
 import { eq, isNull, and } from 'drizzle-orm';
-import { apiHandler, apiSuccess, apiError, parseBody, generateId } from '@/app/lib/api-helpers';
+import { apiHandler, apiSuccess, apiError, parseBodyWithSchema, generateId } from '@/app/lib/api-helpers';
+import { updateWrestlerSchema } from '@/app/lib/validation-schemas';
 
 /**
  * GET /api/wrestlers/:id
@@ -47,11 +48,7 @@ export const PATCH = apiHandler(async (req: NextRequest, { params }) => {
     throw apiError('Wrestler ID is required');
   }
 
-  const body = await parseBody<{
-    currentName?: string;
-    brandId?: string;
-    isActive?: boolean;
-  }>(req);
+  const body = await parseBodyWithSchema(req, updateWrestlerSchema);
 
   if (!body.currentName && !body.brandId && body.isActive === undefined) {
     throw apiError('No fields to update');

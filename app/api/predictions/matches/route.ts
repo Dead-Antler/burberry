@@ -2,7 +2,8 @@ import { NextRequest } from 'next/server';
 import { db } from '@/app/lib/db';
 import { matchPredictions, matches, events } from '@/app/lib/schema';
 import { eq, and } from 'drizzle-orm';
-import { apiHandler, apiSuccess, parseBody, validateRequired, generateId, apiError } from '@/app/lib/api-helpers';
+import { apiHandler, apiSuccess, parseBodyWithSchema, generateId, apiError } from '@/app/lib/api-helpers';
+import { createMatchPredictionSchema } from '@/app/lib/validation-schemas';
 
 /**
  * GET /api/predictions/matches
@@ -16,10 +17,10 @@ export const GET = apiHandler(async (req: NextRequest, { session }) => {
   const eventId = searchParams.get('eventId');
   const matchId = searchParams.get('matchId');
 
-  let query = db.select().from(matchPredictions).where(eq(matchPredictions.userId, session!.user!.id!));
+  const conditions = [eq(matchPredictions.userId, session.user.id)];
 
   if (matchId) {
-    query = query.where(eq(matchPredictions.matchId, matchId)) as typeof query;
+    conditions.push(eq(matchPredictions.matchId, matchId));
   } else if (eventId) {
     // Get all matches for the event, then filter predictions
     const eventMatches = await db.select().from(matches).where(eq(matches.eventId, eventId));
@@ -30,16 +31,16 @@ export const GET = apiHandler(async (req: NextRequest, { session }) => {
       return apiSuccess([]);
     }
 
-    query = query.where(
-      and(
-        eq(matchPredictions.userId, session!.user!.id!),
-        // Use OR condition for multiple match IDs
-        ...matchIds.map((id) => eq(matchPredictions.matchId, id))
-      )
-    ) as typeof query;
+    // Add OR conditions for each match ID using inArray
+    const { inArray } = await import('drizzle-orm');
+    conditions.push(inArray(matchPredictions.matchId, matchIds));
   }
 
-  const predictions = await query;
+  const predictions = await db
+    .select()
+    .from(matchPredictions)
+    .where(and(...conditions));
+
   return apiSuccess(predictions);
 });
 
@@ -48,25 +49,7 @@ export const GET = apiHandler(async (req: NextRequest, { session }) => {
  * Create or update a match prediction
  */
 export const POST = apiHandler(async (req: NextRequest, { session }) => {
-  const body = await parseBody<{
-    matchId: string;
-    predictedSide?: number | null;
-    predictedParticipantId?: string | null;
-  }>(req);
-
-  validateRequired(body, ['matchId']);
-
-  // Validate that either predictedSide or predictedParticipantId is provided (but not both)
-  if (
-    (body.predictedSide === null || body.predictedSide === undefined) &&
-    (body.predictedParticipantId === null || body.predictedParticipantId === undefined)
-  ) {
-    throw apiError('Either predictedSide or predictedParticipantId must be provided');
-  }
-
-  if (body.predictedSide !== null && body.predictedSide !== undefined && body.predictedParticipantId) {
-    throw apiError('Cannot provide both predictedSide and predictedParticipantId');
-  }
+  const body = await parseBodyWithSchema(req, createMatchPredictionSchema);
 
   // Verify match exists and event is open
   const [match] = await db.select().from(matches).where(eq(matches.id, body.matchId));
@@ -85,7 +68,7 @@ export const POST = apiHandler(async (req: NextRequest, { session }) => {
     throw apiError('Cannot make predictions for a locked or completed event');
   }
 
-  const userId = session!.user!.id!;
+  const userId = session.user.id;
 
   // Check if prediction already exists
   const [existingPrediction] = await db

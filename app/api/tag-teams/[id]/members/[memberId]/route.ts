@@ -2,7 +2,8 @@ import { NextRequest } from 'next/server';
 import { db } from '@/app/lib/db';
 import { tagTeamMembers } from '@/app/lib/schema';
 import { eq } from 'drizzle-orm';
-import { apiHandler, apiSuccess, apiError, parseBody } from '@/app/lib/api-helpers';
+import { apiHandler, apiSuccess, apiError, parseBodyWithSchema } from '@/app/lib/api-helpers';
+import { updateTagTeamMemberSchema } from '@/app/lib/validation-schemas';
 
 /**
  * PATCH /api/tag-teams/:id/members/:memberId
@@ -13,9 +14,7 @@ export const PATCH = apiHandler(async (req: NextRequest, { params }) => {
     throw apiError('Tag team ID and member ID are required');
   }
 
-  const body = await parseBody<{
-    leftAt?: string | Date | null;
-  }>(req);
+  const body = await parseBodyWithSchema(req, updateTagTeamMemberSchema);
 
   if (body.leftAt === undefined) {
     throw apiError('No fields to update');

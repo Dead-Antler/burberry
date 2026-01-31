@@ -2,31 +2,15 @@ import { NextRequest } from 'next/server';
 import { db } from '@/app/lib/db';
 import { matches, matchParticipants, matchCombatantChampionships, events } from '@/app/lib/schema';
 import { eq } from 'drizzle-orm';
-import { apiHandler, apiSuccess, parseBody, validateRequired, generateId, apiError } from '@/app/lib/api-helpers';
+import { apiHandler, apiSuccess, parseBodyWithSchema, generateId, apiError } from '@/app/lib/api-helpers';
+import { createMatchSchema } from '@/app/lib/validation-schemas';
 
 /**
  * POST /api/matches
  * Create a new match
  */
 export const POST = apiHandler(async (req: NextRequest) => {
-  const body = await parseBody<{
-    eventId: string;
-    matchType: string;
-    matchOrder: number;
-    participants: Array<{
-      side: number | null;
-      participantType: 'wrestler' | 'tag_team';
-      participantId: string;
-      entryOrder?: number | null;
-    }>;
-    championships?: Array<{
-      championshipId: string;
-      participantType: 'wrestler' | 'tag_team';
-      participantId: string;
-    }>;
-  }>(req);
-
-  validateRequired(body, ['eventId', 'matchType', 'matchOrder', 'participants']);
+  const body = await parseBodyWithSchema(req, createMatchSchema);
 
   // Validate event exists and is in open status
   const [event] = await db.select().from(events).where(eq(events.id, body.eventId));

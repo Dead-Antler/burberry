@@ -1,8 +1,9 @@
 import { NextRequest } from 'next/server';
 import { db } from '@/app/lib/db';
 import { events, matches, matchParticipants, wrestlers, tagTeams, eventCustomPredictions } from '@/app/lib/schema';
-import { eq } from 'drizzle-orm';
-import { apiHandler, apiSuccess, apiError, parseBody } from '@/app/lib/api-helpers';
+import { eq, inArray } from 'drizzle-orm';
+import { apiHandler, apiSuccess, apiError, parseBodyWithSchema, parseQueryWithSchema } from '@/app/lib/api-helpers';
+import { updateEventSchema, eventDetailQuerySchema } from '@/app/lib/validation-schemas';
 
 /**
  * GET /api/events/:id
@@ -17,8 +18,7 @@ export const GET = apiHandler(async (req: NextRequest, { params }) => {
   }
 
   const { searchParams } = new URL(req.url);
-  const includeMatches = searchParams.get('includeMatches') === 'true';
-  const includeCustomPredictions = searchParams.get('includeCustomPredictions') === 'true';
+  const query = parseQueryWithSchema(searchParams, eventDetailQuerySchema);
 
   const [event] = await db.select().from(events).where(eq(events.id, params.id));
 
@@ -28,45 +28,70 @@ export const GET = apiHandler(async (req: NextRequest, { params }) => {
 
   const result: Record<string, unknown> = { ...event };
 
-  if (includeMatches) {
+  if (query.includeMatches) {
     const eventMatches = await db
       .select()
       .from(matches)
       .where(eq(matches.eventId, params.id))
       .orderBy(matches.matchOrder);
 
-    // Get participants for each match
-    const matchesWithParticipants = await Promise.all(
-      eventMatches.map(async (match) => {
-        const participants = await db
-          .select()
-          .from(matchParticipants)
-          .where(eq(matchParticipants.matchId, match.id));
+    // Fetch all participants for all matches in one query
+    const matchIds = eventMatches.map((m) => m.id);
+    const allParticipants =
+      matchIds.length > 0
+        ? await db.select().from(matchParticipants).where(inArray(matchParticipants.matchId, matchIds))
+        : [];
 
-        // Enrich participants with wrestler/tag team data
-        const enrichedParticipants = await Promise.all(
-          participants.map(async (participant) => {
-            if (participant.participantType === 'wrestler') {
-              const [wrestler] = await db
-                .select()
-                .from(wrestlers)
-                .where(eq(wrestlers.id, participant.participantId));
-              return { ...participant, participant: wrestler };
-            } else {
-              const [tagTeam] = await db.select().from(tagTeams).where(eq(tagTeams.id, participant.participantId));
-              return { ...participant, participant: tagTeam };
-            }
-          })
-        );
+    // Collect unique wrestler and tag team IDs
+    const wrestlerIds = new Set<string>();
+    const tagTeamIds = new Set<string>();
 
-        return { ...match, participants: enrichedParticipants };
-      })
-    );
+    for (const p of allParticipants) {
+      if (p.participantType === 'wrestler') {
+        wrestlerIds.add(p.participantId);
+      } else {
+        tagTeamIds.add(p.participantId);
+      }
+    }
+
+    // Fetch all wrestlers and tag teams in 2 queries (parallel)
+    const [allWrestlers, allTagTeams] = await Promise.all([
+      wrestlerIds.size > 0
+        ? db.select().from(wrestlers).where(inArray(wrestlers.id, Array.from(wrestlerIds)))
+        : Promise.resolve([]),
+      tagTeamIds.size > 0
+        ? db.select().from(tagTeams).where(inArray(tagTeams.id, Array.from(tagTeamIds)))
+        : Promise.resolve([]),
+    ]);
+
+    // Create lookup maps for O(1) access
+    const wrestlerMap = new Map(allWrestlers.map((w) => [w.id, w]));
+    const tagTeamMap = new Map(allTagTeams.map((t) => [t.id, t]));
+
+    // Group participants by matchId
+    const participantsByMatch = new Map<string, typeof allParticipants>();
+    for (const p of allParticipants) {
+      if (!participantsByMatch.has(p.matchId)) {
+        participantsByMatch.set(p.matchId, []);
+      }
+      participantsByMatch.get(p.matchId)!.push(p);
+    }
+
+    // Build result in memory (no additional queries)
+    const matchesWithParticipants = eventMatches.map((match) => {
+      const participants = participantsByMatch.get(match.id) || [];
+      const enrichedParticipants = participants.map((p) => ({
+        ...p,
+        participant: p.participantType === 'wrestler' ? wrestlerMap.get(p.participantId) : tagTeamMap.get(p.participantId),
+      }));
+
+      return { ...match, participants: enrichedParticipants };
+    });
 
     result.matches = matchesWithParticipants;
   }
 
-  if (includeCustomPredictions) {
+  if (query.includeCustomPredictions) {
     const customPredictions = await db
       .select()
       .from(eventCustomPredictions)
@@ -87,12 +112,7 @@ export const PATCH = apiHandler(async (req: NextRequest, { params }) => {
     throw apiError('Event ID is required');
   }
 
-  const body = await parseBody<{
-    name?: string;
-    brandId?: string;
-    eventDate?: string | Date;
-    status?: 'open' | 'locked' | 'completed';
-  }>(req);
+  const body = await parseBodyWithSchema(req, updateEventSchema);
 
   if (!body.name && !body.brandId && !body.eventDate && !body.status) {
     throw apiError('No fields to update');

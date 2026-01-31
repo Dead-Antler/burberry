@@ -10,7 +10,8 @@ import {
   events,
 } from '@/app/lib/schema';
 import { eq } from 'drizzle-orm';
-import { apiHandler, apiSuccess, apiError, parseBody } from '@/app/lib/api-helpers';
+import { apiHandler, apiSuccess, apiError, parseBodyWithSchema } from '@/app/lib/api-helpers';
+import { updateMatchSchema } from '@/app/lib/validation-schemas';
 
 /**
  * GET /api/matches/:id
@@ -87,13 +88,7 @@ export const PATCH = apiHandler(async (req: NextRequest, { params }) => {
     throw apiError('Match ID is required');
   }
 
-  const body = await parseBody<{
-    matchType?: string;
-    matchOrder?: number;
-    outcome?: 'winner' | 'draw' | 'no_contest' | null;
-    winningSide?: number | null;
-    winnerParticipantId?: string | null;
-  }>(req);
+  const body = await parseBodyWithSchema(req, updateMatchSchema);
 
   if (
     !body.matchType &&

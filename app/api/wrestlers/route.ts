@@ -1,8 +1,9 @@
 import { NextRequest } from 'next/server';
 import { db } from '@/app/lib/db';
 import { wrestlers, wrestlerNames } from '@/app/lib/schema';
-import { eq } from 'drizzle-orm';
-import { apiHandler, apiSuccess, parseBody, validateRequired, generateId } from '@/app/lib/api-helpers';
+import { eq, and } from 'drizzle-orm';
+import { apiHandler, apiSuccess, parseBodyWithSchema, parseQueryWithSchema, generateId } from '@/app/lib/api-helpers';
+import { createWrestlerSchema, wrestlerQuerySchema } from '@/app/lib/validation-schemas';
 
 /**
  * GET /api/wrestlers
@@ -13,21 +14,22 @@ import { apiHandler, apiSuccess, parseBody, validateRequired, generateId } from 
  */
 export const GET = apiHandler(async (req: NextRequest) => {
   const { searchParams } = new URL(req.url);
-  const brandId = searchParams.get('brandId');
-  const isActive = searchParams.get('isActive');
+  const query = parseQueryWithSchema(searchParams, wrestlerQuerySchema);
 
-  let query = db.select().from(wrestlers);
+  const conditions = [];
 
-  if (brandId) {
-    query = query.where(eq(wrestlers.brandId, brandId)) as typeof query;
+  if (query.brandId) {
+    conditions.push(eq(wrestlers.brandId, query.brandId));
   }
 
-  if (isActive !== null) {
-    const activeStatus = isActive === 'true';
-    query = query.where(eq(wrestlers.isActive, activeStatus)) as typeof query;
+  if (query.isActive !== undefined) {
+    conditions.push(eq(wrestlers.isActive, query.isActive));
   }
 
-  const allWrestlers = await query;
+  const allWrestlers = conditions.length > 0
+    ? await db.select().from(wrestlers).where(and(...conditions))
+    : await db.select().from(wrestlers);
+
   return apiSuccess(allWrestlers);
 });
 
@@ -36,13 +38,7 @@ export const GET = apiHandler(async (req: NextRequest) => {
  * Create a new wrestler
  */
 export const POST = apiHandler(async (req: NextRequest) => {
-  const body = await parseBody<{
-    currentName: string;
-    brandId: string;
-    isActive?: boolean;
-  }>(req);
-
-  validateRequired(body, ['currentName', 'brandId']);
+  const body = await parseBodyWithSchema(req, createWrestlerSchema);
 
   const id = generateId('wrestler');
   const now = new Date();
