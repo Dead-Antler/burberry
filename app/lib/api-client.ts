@@ -109,7 +109,8 @@ class ApiClient {
   // ============================================================================
 
   async getBrands(): Promise<Brand[]> {
-    return this.request('/api/brands');
+    const response = await this.request<{ data: Brand[] }>('/api/brands');
+    return response.data;
   }
 
   async getBrand(id: string): Promise<Brand> {

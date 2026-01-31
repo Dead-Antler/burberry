@@ -1,6 +1,7 @@
 import type { LucideIcon } from 'lucide-react'
 import {
   Calendar,
+  CalendarCog,
   Home,
   Settings,
   Trophy,
@@ -38,6 +39,12 @@ export const NAV_ITEMS: NavItem[] = [
     title: 'Leaderboard',
     url: '/leaderboard',
     icon: Trophy,
+  },
+  {
+    title: 'Manage Events',
+    url: '/admin/events',
+    icon: CalendarCog,
+    adminOnly: true,
   },
   {
     title: 'Wrestlers',

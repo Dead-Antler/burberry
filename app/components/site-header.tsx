@@ -1,5 +1,6 @@
 "use client"
 
+import { Fragment } from "react"
 import { Separator } from "@/components/ui/separator"
 import { SidebarTrigger } from "@/components/ui/sidebar"
 import {
@@ -28,16 +29,18 @@ export function SiteHeader({ breadcrumbs = [] }: SiteHeaderProps) {
         <Breadcrumb>
           <BreadcrumbList>
             {breadcrumbs.map((crumb, index) => (
-              <BreadcrumbItem key={index}>
-                {index > 0 && <BreadcrumbSeparator className="hidden md:block" />}
-                {crumb.href ? (
-                  <BreadcrumbLink href={crumb.href} className="hidden md:block">
-                    {crumb.label}
-                  </BreadcrumbLink>
-                ) : (
-                  <BreadcrumbPage>{crumb.label}</BreadcrumbPage>
-                )}
-              </BreadcrumbItem>
+              <Fragment key={index}>
+                {index > 0 && <BreadcrumbSeparator />}
+                <BreadcrumbItem>
+                  {crumb.href ? (
+                    <BreadcrumbLink href={crumb.href}>
+                      {crumb.label}
+                    </BreadcrumbLink>
+                  ) : (
+                    <BreadcrumbPage>{crumb.label}</BreadcrumbPage>
+                  )}
+                </BreadcrumbItem>
+              </Fragment>
             ))}
           </BreadcrumbList>
         </Breadcrumb>

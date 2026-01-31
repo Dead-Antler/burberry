@@ -169,10 +169,21 @@ AUTH_URL=http://localhost:3000
 - Configure reverse proxy for `x-forwarded-for` headers
 - Enable HTTPS
 
+## UI Guidelines
+
+See [docs/UI.md](docs/UI.md) for detailed patterns. Key principles:
+
+- **Component library**: shadcn/ui components, installed via `bunx shadcn@latest add <component>`
+- **Page structure**: `SiteHeader` with breadcrumbs → content area with `flex flex-1 flex-col gap-4 p-4`
+- **Data tables**: Card with `py-0 overflow-hidden` containing Table, responsive column hiding
+- **CRUD dialogs**: Dialog for create/edit, AlertDialog for delete confirmation
+- **State management**: Client components with `useState` for UI state, `apiClient` for data fetching
+- **Loading/error states**: Skeleton placeholders, error cards with retry buttons, empty states
+
 ## Documentation Guidelines
 
 - **CLAUDE.md**: Keep high-level (~200 lines max). Architecture decisions, not implementation details.
-- **docs/**: Only evergreen reference docs (API.md). No implementation plans, completion summaries, or dated fix logs.
+- **docs/**: Only evergreen reference docs (API.md, UI.md). No implementation plans, completion summaries, or dated fix logs.
 - **Code comments**: Implementation details belong in the code itself.
 - Delete temporary docs (plans, TODOs, fix logs) once work is complete.
 
