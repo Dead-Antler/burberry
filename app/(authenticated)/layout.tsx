@@ -1,7 +1,9 @@
 import { redirect } from "next/navigation"
 import { auth } from "@/auth"
 import { AppSidebar } from "@/app/components/app-sidebar"
+import { ErrorBoundary } from "@/app/components/error-boundary"
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar"
+import { getUserFromSession } from "@/app/lib/session-utils"
 
 export default async function AuthenticatedLayout({
   children,
@@ -9,21 +11,18 @@ export default async function AuthenticatedLayout({
   children: React.ReactNode
 }) {
   const session = await auth()
+  const user = getUserFromSession(session)
 
-  if (!session) {
+  if (!user) {
     redirect("/login")
-  }
-
-  const user = {
-    name: session.user?.name ?? "",
-    email: session.user?.email ?? "",
-    isAdmin: session.user?.isAdmin ?? false,
   }
 
   return (
     <SidebarProvider>
       <AppSidebar user={user} />
-      <SidebarInset>{children}</SidebarInset>
+      <SidebarInset>
+        <ErrorBoundary>{children}</ErrorBoundary>
+      </SidebarInset>
     </SidebarProvider>
   )
 }

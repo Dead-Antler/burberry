@@ -2,17 +2,7 @@
 
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import {
-  Calendar,
-  Home,
-  Settings,
-  Trophy,
-  Users,
-  Award,
-  Swords,
-  Crown,
-  Target,
-} from "lucide-react"
+import { Swords } from "lucide-react"
 
 import { NavUser } from "@/app/components/nav-user"
 import {
@@ -28,71 +18,16 @@ import {
   SidebarMenuItem,
   SidebarRail,
 } from "@/components/ui/sidebar"
-
-const mainNavItems = [
-  {
-    title: "Dashboard",
-    url: "/",
-    icon: Home,
-  },
-  {
-    title: "Events",
-    url: "/events",
-    icon: Calendar,
-  },
-  {
-    title: "Predictions",
-    url: "/predictions",
-    icon: Target,
-  },
-  {
-    title: "Leaderboard",
-    url: "/leaderboard",
-    icon: Trophy,
-  },
-]
-
-const adminNavItems = [
-  {
-    title: "Wrestlers",
-    url: "/wrestlers",
-    icon: Swords,
-  },
-  {
-    title: "Tag Teams",
-    url: "/tag-teams",
-    icon: Users,
-  },
-  {
-    title: "Championships",
-    url: "/championships",
-    icon: Award,
-  },
-  {
-    title: "Brands",
-    url: "/brands",
-    icon: Crown,
-  },
-  {
-    title: "Settings",
-    url: "/admin",
-    icon: Settings,
-  },
-]
-
-interface User {
-  name: string
-  email: string
-  isAdmin: boolean
-}
+import { getNavItems } from "@/app/lib/navigation"
+import type { AppUser } from "@/app/lib/session-utils"
 
 interface AppSidebarProps extends React.ComponentProps<typeof Sidebar> {
-  user: User
+  user: AppUser
 }
 
 export function AppSidebar({ user, ...props }: AppSidebarProps) {
   const pathname = usePathname()
-  const isAdmin = user.isAdmin
+  const { main, admin } = getNavItems(user.isAdmin)
 
   return (
     <Sidebar collapsible="icon" {...props}>
@@ -120,7 +55,7 @@ export function AppSidebar({ user, ...props }: AppSidebarProps) {
           <SidebarGroupLabel>Navigation</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
-              {mainNavItems.map((item) => (
+              {main.map((item) => (
                 <SidebarMenuItem key={item.title}>
                   <SidebarMenuButton
                     asChild
@@ -138,12 +73,12 @@ export function AppSidebar({ user, ...props }: AppSidebarProps) {
           </SidebarGroupContent>
         </SidebarGroup>
 
-        {isAdmin && (
+        {admin.length > 0 && (
           <SidebarGroup>
             <SidebarGroupLabel>Administration</SidebarGroupLabel>
             <SidebarGroupContent>
               <SidebarMenu>
-                {adminNavItems.map((item) => (
+                {admin.map((item) => (
                   <SidebarMenuItem key={item.title}>
                     <SidebarMenuButton
                       asChild

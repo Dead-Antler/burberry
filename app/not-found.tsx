@@ -5,6 +5,7 @@ import { SiteHeader } from "@/app/components/site-header"
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar"
 import { Button } from "@/components/ui/button"
 import { FileQuestion } from "lucide-react"
+import { getUserFromSession } from "@/app/lib/session-utils"
 
 function NotFoundContent() {
   return (
@@ -27,15 +28,10 @@ function NotFoundContent() {
 
 export default async function NotFound() {
   const session = await auth()
+  const user = getUserFromSession(session)
 
   // If authenticated, show within the app shell
-  if (session) {
-    const user = {
-      name: session.user?.name ?? "",
-      email: session.user?.email ?? "",
-      isAdmin: session.user?.isAdmin ?? false,
-    }
-
+  if (user) {
     return (
       <SidebarProvider>
         <AppSidebar user={user} />

@@ -47,24 +47,61 @@ import type {
 } from './api-types';
 
 /**
+ * Custom error class for API client errors with status code and request ID
+ */
+export class ApiClientError extends Error {
+  readonly statusCode: number;
+  readonly requestId: string | null;
+
+  constructor(message: string, statusCode: number, requestId: string | null = null) {
+    super(message);
+    this.name = 'ApiClientError';
+    this.statusCode = statusCode;
+    this.requestId = requestId;
+  }
+}
+
+/**
  * Base API client with error handling
  */
 class ApiClient {
   private async request<T>(url: string, options?: RequestInit): Promise<T> {
-    const response = await fetch(url, {
-      ...options,
-      headers: {
-        'Content-Type': 'application/json',
-        ...options?.headers,
-      },
-    });
+    let response: Response;
 
-    if (!response.ok) {
-      const error = await response.json().catch(() => ({ error: 'Unknown error' }));
-      throw new Error(error.error || `HTTP ${response.status}`);
+    try {
+      response = await fetch(url, {
+        ...options,
+        headers: {
+          'Content-Type': 'application/json',
+          ...options?.headers,
+        },
+      });
+    } catch (error) {
+      throw new ApiClientError(
+        error instanceof Error ? `Network error: ${error.message}` : 'Network error',
+        0,
+        null
+      );
     }
 
-    return response.json();
+    const requestId = response.headers.get('x-request-id');
+
+    if (!response.ok) {
+      let errorMessage = `HTTP ${response.status}`;
+      try {
+        const errorBody = await response.json();
+        errorMessage = errorBody.error || errorMessage;
+      } catch {
+        // Ignore JSON parse errors for error responses
+      }
+      throw new ApiClientError(errorMessage, response.status, requestId);
+    }
+
+    try {
+      return await response.json();
+    } catch {
+      throw new ApiClientError('Failed to parse response', response.status, requestId);
+    }
   }
 
   // ============================================================================

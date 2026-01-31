@@ -1,0 +1,79 @@
+import type { LucideIcon } from 'lucide-react'
+import {
+  Calendar,
+  Home,
+  Settings,
+  Trophy,
+  Users,
+  Award,
+  Swords,
+  Crown,
+  Target,
+} from 'lucide-react'
+
+export interface NavItem {
+  title: string
+  url: string
+  icon: LucideIcon
+  adminOnly?: boolean
+}
+
+export const NAV_ITEMS: NavItem[] = [
+  {
+    title: 'Dashboard',
+    url: '/',
+    icon: Home,
+  },
+  {
+    title: 'Events',
+    url: '/events',
+    icon: Calendar,
+  },
+  {
+    title: 'Predictions',
+    url: '/predictions',
+    icon: Target,
+  },
+  {
+    title: 'Leaderboard',
+    url: '/leaderboard',
+    icon: Trophy,
+  },
+  {
+    title: 'Wrestlers',
+    url: '/wrestlers',
+    icon: Swords,
+    adminOnly: true,
+  },
+  {
+    title: 'Tag Teams',
+    url: '/tag-teams',
+    icon: Users,
+    adminOnly: true,
+  },
+  {
+    title: 'Championships',
+    url: '/championships',
+    icon: Award,
+    adminOnly: true,
+  },
+  {
+    title: 'Brands',
+    url: '/brands',
+    icon: Crown,
+    adminOnly: true,
+  },
+  {
+    title: 'Settings',
+    url: '/admin',
+    icon: Settings,
+    adminOnly: true,
+  },
+]
+
+export function getNavItems(isAdmin: boolean): { main: NavItem[]; admin: NavItem[] } {
+  const main = NAV_ITEMS.filter((item) => !item.adminOnly)
+  const admin = isAdmin ? NAV_ITEMS.filter((item) => item.adminOnly) : []
+
+  return { main, admin }
+}

@@ -1,39 +1,39 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { loginAction } from '@/app/actions/auth';
+import { useAsyncAction } from '@/hooks/use-async-action';
 
 export function LoginForm() {
   const router = useRouter();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [error, setError] = useState('');
-  const [isLoading, setIsLoading] = useState(false);
+
+  const loginFn = useCallback(
+    async (email: string, password: string) => {
+      const result = await loginAction(email, password);
+      if (result.error) {
+        throw new Error(result.error);
+      }
+      return result;
+    },
+    []
+  );
+
+  const { isLoading, error, execute } = useAsyncAction(loginFn);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setIsLoading(true);
-    setError('');
 
-    try {
-      const result = await loginAction(email, password);
-
-      if (result.error) {
-        setError(result.error);
-        setIsLoading(false);
-        return;
-      }
-
+    const result = await execute(email, password);
+    if (result) {
       router.push('/');
       router.refresh();
-    } catch (error) {
-      setError('An error occurred. Please try again.');
-      setIsLoading(false);
     }
   };
 
