@@ -16,7 +16,7 @@ import {
   tagTeams,
   brands,
 } from '../schema';
-import { eq, and, gte, lte, inArray, asc, desc, SQL } from 'drizzle-orm';
+import { eq, and, gte, lte, inArray, asc, desc, or, SQL } from 'drizzle-orm';
 import { generateId, apiError } from '../api-helpers';
 import type { PaginationParams } from '../api-helpers';
 import {
@@ -46,6 +46,7 @@ export interface UpdateEventInput {
 export interface ListEventsParams extends PaginationParams {
   brandId?: string;
   status?: string;
+  active?: boolean;
   fromDate?: string;
   toDate?: string;
   includeMatches?: boolean;
@@ -309,6 +310,9 @@ export const eventService = {
 
     if (params.status) {
       conditions.push(eq(events.status, params.status));
+    } else if (params.active) {
+      // Active events are those that are open or locked (not completed)
+      conditions.push(or(eq(events.status, 'open'), eq(events.status, 'locked'))!);
     }
 
     if (params.fromDate) {

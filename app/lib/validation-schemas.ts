@@ -131,6 +131,7 @@ export const updateEventSchema = z.object({
 export const eventQuerySchema = z.object({
   brandId: z.string().optional(),
   status: eventStatusSchema.optional(),
+  active: z.enum(['true', 'false']).transform((v) => v === 'true').optional(),
   fromDate: z.string().datetime().optional(),
   toDate: z.string().datetime().optional(),
   includeMatches: z.enum(['true', 'false']).transform((v) => v === 'true').optional(),
@@ -162,7 +163,7 @@ export const createMatchSchema = z.object({
   eventId: z.string().min(1, 'Event ID is required'),
   matchType: z.string().min(1).max(100),
   matchOrder: z.number().int().positive(),
-  participants: z.array(matchParticipantSchema).min(2, 'At least 2 participants required'),
+  participants: z.array(matchParticipantSchema).optional().default([]),
   championships: z.array(matchChampionshipSchema).optional(),
 });
 

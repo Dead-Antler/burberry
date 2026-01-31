@@ -3,6 +3,7 @@ import {
   Calendar,
   CalendarCog,
   Home,
+  ListChecks,
   Settings,
   Trophy,
   Users,
@@ -12,11 +13,17 @@ import {
   Target,
 } from 'lucide-react'
 
+export interface NavSubItem {
+  title: string
+  url: string
+}
+
 export interface NavItem {
   title: string
   url: string
   icon: LucideIcon
   adminOnly?: boolean
+  children?: NavSubItem[]
 }
 
 export const NAV_ITEMS: NavItem[] = [
@@ -45,6 +52,10 @@ export const NAV_ITEMS: NavItem[] = [
     url: '/admin/events',
     icon: CalendarCog,
     adminOnly: true,
+    children: [
+      { title: 'Events', url: '/admin/events' },
+      { title: 'Matches', url: '/admin/matches' },
+    ],
   },
   {
     title: 'Wrestlers',
@@ -72,7 +83,7 @@ export const NAV_ITEMS: NavItem[] = [
   },
   {
     title: 'Settings',
-    url: '/admin',
+    url: '/settings',
     icon: Settings,
     adminOnly: true,
   },

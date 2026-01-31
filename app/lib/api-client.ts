@@ -149,7 +149,8 @@ class ApiClient {
     if (params?.brandId) query.set('brandId', params.brandId);
     if (params?.isActive !== undefined) query.set('isActive', String(params.isActive));
 
-    return this.request(`/api/wrestlers?${query}`);
+    const response = await this.request<{ data: Wrestler[] }>(`/api/wrestlers?${query}`);
+    return response.data;
   }
 
   async getWrestler(id: string, includeHistory = false): Promise<Wrestler | WrestlerWithHistory> {
@@ -195,7 +196,8 @@ class ApiClient {
     if (params?.isActive !== undefined) query.set('isActive', String(params.isActive));
     if (params?.includeMembers) query.set('includeMembers', 'true');
 
-    return this.request(`/api/tag-teams?${query}`);
+    const response = await this.request<{ data: TagTeam[] | TagTeamWithMembers[] }>(`/api/tag-teams?${query}`);
+    return response.data;
   }
 
   async getTagTeam(id: string, includeMembers = false): Promise<TagTeam | TagTeamWithMembers> {
@@ -289,18 +291,21 @@ class ApiClient {
   async getEvents(params?: {
     brandId?: string;
     status?: string;
+    active?: boolean;
     fromDate?: Date | string;
     toDate?: Date | string;
     includeMatches?: boolean;
-  }): Promise<Event[] | EventWithMatches[]> {
+  }): Promise<Event[]> {
     const query = new URLSearchParams();
     if (params?.brandId) query.set('brandId', params.brandId);
     if (params?.status) query.set('status', params.status);
+    if (params?.active) query.set('active', 'true');
     if (params?.fromDate) query.set('fromDate', params.fromDate.toString());
     if (params?.toDate) query.set('toDate', params.toDate.toString());
     if (params?.includeMatches) query.set('includeMatches', 'true');
 
-    return this.request(`/api/events?${query}`);
+    const response = await this.request<{ data: Event[] }>(`/api/events?${query}`);
+    return response.data;
   }
 
   async getEvent(

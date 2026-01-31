@@ -29,6 +29,7 @@ export const GET = apiHandler(async (req: NextRequest) => {
     ...pagination,
     brandId: query.brandId,
     status: query.status,
+    active: query.active,
     fromDate: query.fromDate,
     toDate: query.toDate,
     includeMatches: query.includeMatches,
