@@ -2,16 +2,23 @@
 
 This document provides a comprehensive overview of the system architecture, design decisions, and implementation details for this Next.js authentication project.
 
+**Documentation Organization:**
+- **CLAUDE.md** (this file) - System architecture and design decisions
+- **docs/** - Detailed documentation (API reference, implementation plans, guides)
+- **README.md** - Project overview and quick start
+
 ## Project Overview
 
 A Next.js 16 application with secure authentication and a wrestling prediction system, built for small-scale private use. The system prioritizes security, simplicity, and ease of maintenance.
 
 **Core Features:**
-- User authentication and session management
+- User authentication and session management with role-based access control
 - Wrestling event and match tracking
 - Prediction system for match outcomes and custom predictions
 - Contrarian mode gameplay
 - Historical tracking and scoring
+- RESTful API with comprehensive CRUD operations
+- Admin permissions for system management
 
 ## Technology Stack
 
@@ -159,6 +166,108 @@ if (!session) redirect('/login');
 - Server-side validation (can't be bypassed)
 - Simple and explicit
 
+### 6. Role-Based Access Control (RBAC)
+
+**Choice**: Two-tier permission system (Normal Users & Admins)
+
+**Implementation**:
+```typescript
+// Database schema
+users: {
+  isAdmin: boolean (default: false)
+}
+
+// JWT token includes isAdmin claim
+// Session includes isAdmin flag
+// API middleware enforces permissions
+```
+
+**Permission Model**:
+
+**Normal Users** can:
+- View all data (GET endpoints)
+- Make and manage their own predictions
+- Enable/disable contrarian mode for themselves
+
+**Admins** can:
+- Everything normal users can do, PLUS:
+- Create, update, delete all entities (brands, wrestlers, events, matches, etc.)
+- Enter match results and custom prediction answers
+- Change event status (open → locked → completed)
+- Trigger event scoring
+
+**API Protection**:
+```typescript
+// Admin-only endpoint
+export const POST = apiHandler(async (req) => {
+  // Create brand logic
+}, { requireAdmin: true });
+
+// User-accessible endpoint
+export const GET = apiHandler(async (req) => {
+  // List brands logic
+}); // No requireAdmin - all authenticated users can access
+```
+
+**Rationale**:
+- Simple two-tier model sufficient for small-scale use
+- Server-side enforcement prevents bypass
+- JWT-based for stateless validation
+- Default to non-admin (secure by default)
+- Easy to promote users to admin via database update
+
+**Trade-offs**:
+- No granular permissions (event manager, scorer, etc.)
+- Cannot invalidate admin status until token expires (JWT limitation)
+- Requires manual database update to change admin status
+
+### 7. RESTful API Architecture
+
+**Choice**: Comprehensive REST API with all logic encapsulated in endpoints
+
+**Design Principles**:
+- All business logic in API routes (not in UI)
+- Type-safe with TypeScript throughout
+- Consistent error handling and response format
+- Support for auto-refreshing UIs via polling
+- Rate limiting on all endpoints (100 req/min default)
+
+**API Coverage**:
+- **Core Entities**: Brands, Wrestlers, Tag Teams, Championships (CRUD)
+- **Events & Matches**: Full lifecycle management with participants
+- **Predictions**: Match predictions, custom predictions, contrarian mode
+- **Scoring**: Automated scoring engine with leaderboard
+
+**Total Endpoints**: ~70 endpoints across 11 entity types
+
+**Authentication**: All endpoints require valid session
+**Authorization**: 28 endpoints require admin privileges (marked with `[ADMIN ONLY]` in API.md)
+
+**Example API Flow**:
+```typescript
+// Frontend makes API call
+const response = await apiClient.createBrand({ name: 'WWE' });
+
+// API handler enforces auth + permissions
+export const POST = apiHandler(async (req) => {
+  const body = await parseBody(req);
+  validateRequired(body, ['name']);
+  // ... create brand logic
+  return apiSuccess(newBrand, 201);
+}, { requireAdmin: true });
+
+// Returns typed response or throws appropriate error
+```
+
+**Benefits**:
+- UI is purely presentational
+- Easy to add different frontends (mobile app, CLI, etc.)
+- API can be consumed by external tools
+- Testing is straightforward (test APIs directly)
+- Business logic centralized and reusable
+
+**Documentation**: Complete API reference in `API.md` with request/response examples
+
 ## Project Structure
 
 ```
@@ -166,15 +275,24 @@ burberry/
 ├── app/
 │   ├── actions/
 │   │   └── auth.ts              # Server action for login with rate limiting
-│   ├── api/
-│   │   └── auth/[...nextauth]/
-│   │       └── route.ts         # Auth.js API route with rate limiting
+│   ├── api/                     # RESTful API endpoints (~70 total)
+│   │   ├── auth/[...nextauth]/  # Auth.js authentication
+│   │   ├── brands/              # Brand CRUD
+│   │   ├── wrestlers/           # Wrestler CRUD + name history
+│   │   ├── tag-teams/           # Tag team CRUD + members
+│   │   ├── championships/       # Championship CRUD
+│   │   ├── events/              # Event CRUD + custom predictions + scoring
+│   │   ├── matches/             # Match CRUD + participants
+│   │   └── predictions/         # User predictions (matches, custom, contrarian)
 │   ├── components/
 │   │   └── login-form.tsx       # Login form component
 │   ├── lib/
+│   │   ├── api-client.ts        # Type-safe API client
+│   │   ├── api-helpers.ts       # API middleware & utilities
+│   │   ├── api-types.ts         # TypeScript type definitions
 │   │   ├── db.ts                # Database connection
 │   │   ├── rate-limit.ts        # In-memory rate limiter
-│   │   └── schema.ts            # Drizzle schema
+│   │   └── schema.ts            # Drizzle schema (16 tables)
 │   ├── login/
 │   │   └── page.tsx             # Login page
 │   ├── layout.tsx               # Root layout with SessionProvider
@@ -183,12 +301,20 @@ burberry/
 ├── components/ui/               # shadcn components
 ├── data/
 │   └── database.db              # SQLite database (gitignored)
+├── docs/                        # Project documentation
+│   ├── API.md                   # Complete API reference
+│   ├── ADMIN_PERMISSIONS_PLAN.md       # Admin implementation plan
+│   └── ADMIN_IMPLEMENTATION_COMPLETE.md # Implementation summary
 ├── drizzle/                     # Migration files
 ├── scripts/
-│   └── create-user.ts           # User creation helper
-├── auth.ts                      # Auth.js configuration
+│   ├── create-user.ts           # Interactive user creation (admin flag support)
+│   └── seed-wrestling-data.ts   # Initial data seeding
+├── types/
+│   └── next-auth.d.ts           # Auth.js TypeScript extensions
+├── auth.ts                      # Auth.js configuration (JWT + RBAC)
 ├── drizzle.config.ts            # Drizzle ORM config
 ├── middleware.ts                # Route protection
+├── CLAUDE.md                    # System architecture (this file)
 └── .env                         # Environment variables
 ```
 
@@ -229,6 +355,28 @@ burberry/
 | Session Hijacking | HTTP-only, Secure cookies |
 | CSRF | Auth.js built-in protection |
 | SQL Injection | Drizzle ORM parameterized queries |
+| Unauthorized Access | Role-based access control (RBAC) |
+| Privilege Escalation | Server-side permission validation |
+
+### Security Features - Admin Permissions
+
+5. **Role-Based Access Control**
+   - Two-tier system: Normal Users and Admins
+   - `isAdmin` flag in database (default: false)
+   - Admin status included in JWT token
+   - Server-side validation on every request
+
+6. **Permission Enforcement**
+   - 28 endpoints require admin privileges
+   - 403 Forbidden for unauthorized access
+   - Cannot be bypassed from frontend
+   - Middleware-level enforcement (`requireAdmin()`)
+
+7. **Admin Management**
+   - Interactive user creation script
+   - Manual promotion via database update
+   - Password never exposed in API responses
+   - Admin actions logged (can be enhanced)
 
 ## Environment Variables
 
@@ -259,6 +407,171 @@ AUTH_URL=http://localhost:3000
   "db:studio": "drizzle-kit studio",
   "db:create-user": "tsx scripts/create-user.ts"
 }
+```
+
+## RESTful API Structure
+
+The application features a comprehensive RESTful API that encapsulates all business logic.
+
+### API Organization
+
+```
+app/api/
+├── auth/[...nextauth]/route.ts    # Auth.js endpoint
+├── brands/                         # Brand management
+│   ├── route.ts                   # GET (all), POST (admin)
+│   └── [id]/route.ts              # GET, PATCH (admin), DELETE (admin)
+├── wrestlers/                      # Wrestler management
+│   ├── route.ts                   # GET (all), POST (admin)
+│   ├── [id]/route.ts              # GET, PATCH (admin), DELETE (admin)
+│   └── [id]/names/route.ts        # GET name history
+├── tag-teams/                      # Tag team management
+│   ├── route.ts                   # GET (all), POST (admin)
+│   ├── [id]/route.ts              # GET, PATCH (admin), DELETE (admin)
+│   └── [id]/members/              # Member management
+│       ├── route.ts               # GET, POST (admin)
+│       └── [memberId]/route.ts    # PATCH (admin), DELETE (admin)
+├── championships/                  # Championship management
+│   ├── route.ts                   # GET (all), POST (admin)
+│   └── [id]/route.ts              # GET, PATCH (admin), DELETE (admin)
+├── events/                         # Event management
+│   ├── route.ts                   # GET (all), POST (admin)
+│   ├── [id]/route.ts              # GET, PATCH (admin), DELETE (admin)
+│   ├── [id]/custom-predictions/   # Event custom predictions (admin)
+│   │   ├── route.ts               # GET, POST (admin)
+│   │   └── [predictionId]/route.ts # PATCH (admin), DELETE (admin)
+│   └── [id]/score/route.ts        # GET (leaderboard), POST (admin - score)
+├── matches/                        # Match management
+│   ├── route.ts                   # POST (admin)
+│   ├── [id]/route.ts              # GET, PATCH (admin), DELETE (admin)
+│   └── [id]/participants/         # Participant management
+│       ├── route.ts               # GET, POST (admin)
+│       └── [participantId]/route.ts # PATCH (admin), DELETE (admin)
+└── predictions/                    # User predictions
+    ├── matches/                   # Match predictions
+    │   ├── route.ts              # GET (own), POST (create/update)
+    │   └── [id]/route.ts         # GET (own), PATCH, DELETE
+    ├── custom/                    # Custom predictions
+    │   ├── route.ts              # GET (own), POST (create/update)
+    │   └── [id]/route.ts         # GET (own), PATCH, DELETE
+    └── contrarian/                # Contrarian mode
+        ├── route.ts              # GET (own), POST (enable/update)
+        └── [eventId]/route.ts    # GET (own), DELETE
+```
+
+### API Helpers & Utilities
+
+**File**: `app/lib/api-helpers.ts`
+
+```typescript
+// Authentication middleware
+requireAuth(req)        // Validates user session
+requireAdmin(req)       // Validates admin privileges
+
+// Rate limiting
+requireRateLimit(req, { limit: 100, windowMs: 60000 })
+
+// API handler wrapper
+apiHandler(handler, {
+  requireAuth: true,    // Default: require authentication
+  requireAdmin: false,  // Optional: require admin
+  rateLimit: {...}      // Optional: custom rate limit
+})
+
+// Response helpers
+apiSuccess(data, status)  // Standard success response
+apiError(message, status) // Standard error response
+
+// Validation
+validateRequired(data, ['field1', 'field2'])
+parseBody(req)           // Parse JSON with error handling
+generateId(prefix)       // Generate unique IDs
+```
+
+### Permission Summary
+
+**Total Endpoints**: ~70
+- **Public Endpoints**: 0 (all require authentication)
+- **User Endpoints**: ~42 (authenticated users can access)
+  - All GET endpoints (read-only)
+  - Own predictions (match, custom, contrarian)
+- **Admin Endpoints**: 28 (require `isAdmin: true`)
+  - All POST/PATCH/DELETE for entities
+  - Match result entry
+  - Event scoring
+
+### API Client
+
+**File**: `app/lib/api-client.ts`
+
+Type-safe frontend client with methods for all endpoints:
+
+```typescript
+// Usage in frontend
+import { apiClient } from '@/app/lib/api-client';
+
+// Automatically type-safe
+const brands = await apiClient.getBrands();
+const brand = await apiClient.createBrand({ name: 'WWE' }); // Admin only
+
+// Error handling
+try {
+  await apiClient.createBrand({ name: 'Test' });
+} catch (error) {
+  // 403 if not admin
+  // 401 if not authenticated
+}
+```
+
+### API Response Format
+
+**Success**:
+```json
+{
+  "id": "brand_123",
+  "name": "WWE",
+  "createdAt": "2024-01-01T00:00:00.000Z",
+  "updatedAt": "2024-01-01T00:00:00.000Z"
+}
+```
+
+**Error**:
+```json
+{
+  "error": "Forbidden - Admin access required"
+}
+```
+
+**Rate Limit Headers**:
+```
+X-RateLimit-Limit: 100
+X-RateLimit-Remaining: 99
+X-RateLimit-Reset: 1234567890
+Retry-After: 60
+```
+
+### Admin User Management
+
+**Create Admin User**:
+```bash
+bun db:create-user
+# Prompts for: Email, Password, Name, Is Admin? (y/n)
+```
+
+**Promote Existing User**:
+```bash
+sqlite3 data/database.db "UPDATE users SET isAdmin = 1 WHERE email = 'user@example.com';"
+```
+
+**Check Admin Status**:
+```typescript
+// In API route
+const session = await auth();
+const isAdmin = session?.user?.isAdmin;
+
+// In React component
+const { data: session } = useSession();
+const isAdmin = session?.user?.isAdmin;
 ```
 
 ## Development Workflow
@@ -1025,14 +1338,50 @@ sqlite3 data/database.db "PRAGMA integrity_check;"
 
 ## References
 
+### External Documentation
 - [Next.js Documentation](https://nextjs.org/docs)
 - [Auth.js Documentation](https://authjs.dev)
 - [Drizzle ORM Documentation](https://orm.drizzle.team)
 - [bcrypt Information](https://en.wikipedia.org/wiki/Bcrypt)
 - [OWASP Authentication Cheat Sheet](https://cheatsheetseries.owasp.org/cheatsheets/Authentication_Cheat_Sheet.html)
 
+### Project Documentation
+
+**Documentation Files (in `docs/`):**
+- **`docs/API.md`** - Complete RESTful API reference with all endpoints, request/response examples, and permission requirements
+- **`docs/ADMIN_PERMISSIONS_PLAN.md`** - Detailed implementation plan for role-based access control
+- **`docs/ADMIN_IMPLEMENTATION_COMPLETE.md`** - Implementation summary, testing checklist, and completion status
+
+**Code Documentation:**
+- **`app/lib/api-types.ts`** - TypeScript type definitions for all API requests and responses
+- **`app/lib/api-client.ts`** - Type-safe frontend client for consuming the API
+- **`app/lib/api-helpers.ts`** - API middleware and utility functions
+
+### Quick Start
+
+1. **Setup Database**:
+   ```bash
+   bun db:migrate
+   ```
+
+2. **Create Admin User**:
+   ```bash
+   bun db:create-user
+   # Answer 'y' to "Is Admin?"
+   ```
+
+3. **Start Development Server**:
+   ```bash
+   bun dev
+   ```
+
+4. **Access API Documentation**:
+   - Open `docs/API.md` for complete endpoint reference
+   - Use `app/lib/api-client.ts` for type-safe API calls
+
 ---
 
 **Last Updated**: 2026-01-31
-**System Version**: 1.0
+**System Version**: 1.1
 **Next.js Version**: 16.1.6
+**API Endpoints**: ~70 total (28 admin-only)
