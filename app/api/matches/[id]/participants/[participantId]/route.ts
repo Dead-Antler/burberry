@@ -16,7 +16,7 @@ export const PATCH = apiHandler(async (req: NextRequest, { params }) => {
 
   const body = await parseBodyWithSchema(req, updateMatchParticipantSchema);
 
-  if (body.side === undefined && body.entryOrder === undefined && !body.participantType && !body.participantId) {
+  if (body.side === undefined && body.entryOrder === undefined && !body.participantType && !body.participantId && body.isChampion === undefined) {
     throw apiError('No fields to update');
   }
 
@@ -26,6 +26,7 @@ export const PATCH = apiHandler(async (req: NextRequest, { params }) => {
   if (body.participantType !== undefined) updateData.participantType = body.participantType;
   if (body.participantId !== undefined) updateData.participantId = body.participantId;
   if (body.entryOrder !== undefined) updateData.entryOrder = body.entryOrder;
+  if (body.isChampion !== undefined) updateData.isChampion = body.isChampion;
 
   const [updatedParticipant] = await db
     .update(matchParticipants)

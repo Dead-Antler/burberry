@@ -34,7 +34,7 @@ app/
     api-types.ts            # TypeScript types
     db.ts                   # Database connection
     rate-limit.ts           # In-memory rate limiter
-    schema.ts               # Drizzle schema (16 tables)
+    schema.ts               # Drizzle schema (14 tables)
     validation-schemas.ts   # Zod schemas
   login/page.tsx            # Login page
   page.tsx                  # Protected home
@@ -77,19 +77,20 @@ scripts/
 
 ## Database Schema
 
-**16 tables** in `app/lib/schema.ts`:
+**14 tables** in `app/lib/schema.ts`:
 
 | Category | Tables |
 |----------|--------|
 | Users | `users` |
-| Wrestling | `brands`, `wrestlers`, `wrestlerNames`, `tagTeams`, `tagTeamMembers`, `championships` |
-| Events | `events`, `matches`, `matchParticipants`, `matchCombatantChampionships` |
+| Wrestling | `brands`, `wrestlers`, `wrestlerNames`, `tagTeams`, `tagTeamMembers` |
+| Events | `events`, `matches`, `matchParticipants` |
 | Predictions | `matchPredictions`, `customPredictionTemplates`, `eventCustomPredictions`, `userCustomPredictions`, `userEventContrarian` |
 
 ### Key Relationships
 - Wrestlers belong to brands, can have name history
 - Tag teams have members with join/leave dates
 - Matches have flexible participant system (polymorphic: wrestler or tag_team)
+- Match participants have optional `isChampion` flag to indicate champion status
 - Predictions support team matches (winningSide) and free-for-alls (winnerParticipantId)
 
 ## Prediction System
@@ -189,4 +190,4 @@ See [docs/UI.md](docs/UI.md) for detailed patterns. Key principles:
 
 ---
 
-**Last Updated**: 2026-01-31
+**Last Updated**: 2026-02-01

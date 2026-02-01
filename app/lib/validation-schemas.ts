@@ -90,27 +90,6 @@ export const updateTagTeamMemberSchema = z.object({
 });
 
 // ============================================================================
-// Championship Schemas
-// ============================================================================
-
-export const createChampionshipSchema = z.object({
-  name: z.string().min(1, 'Championship name is required').max(100).transform((s) => sanitizeText(s)),
-  brandId: z.string().min(1, 'Brand ID is required'),
-  isActive: z.boolean().optional(),
-});
-
-export const updateChampionshipSchema = z.object({
-  name: z.string().min(1).max(100).transform((s) => sanitizeText(s)).optional(),
-  brandId: z.string().min(1).optional(),
-  isActive: z.boolean().optional(),
-});
-
-export const championshipQuerySchema = z.object({
-  brandId: z.string().optional(),
-  isActive: z.enum(['true', 'false']).transform((v) => v === 'true').optional(),
-});
-
-// ============================================================================
 // Event Schemas
 // ============================================================================
 
@@ -151,12 +130,7 @@ export const matchParticipantSchema = z.object({
   participantType: participantTypeSchema,
   participantId: z.string().min(1),
   entryOrder: z.number().int().positive().nullable().optional(),
-});
-
-export const matchChampionshipSchema = z.object({
-  championshipId: z.string().min(1),
-  participantType: participantTypeSchema,
-  participantId: z.string().min(1),
+  isChampion: z.boolean().optional(),
 });
 
 export const createMatchSchema = z.object({
@@ -164,7 +138,6 @@ export const createMatchSchema = z.object({
   matchType: z.string().min(1).max(100),
   matchOrder: z.number().int().positive(),
   participants: z.array(matchParticipantSchema).optional().default([]),
-  championships: z.array(matchChampionshipSchema).optional(),
 });
 
 export const updateMatchSchema = z.object({
@@ -180,6 +153,7 @@ export const addMatchParticipantSchema = z.object({
   participantType: participantTypeSchema,
   participantId: z.string().min(1),
   entryOrder: z.number().int().positive().nullable().optional(),
+  isChampion: z.boolean().optional(),
 });
 
 export const updateMatchParticipantSchema = z.object({
@@ -187,6 +161,7 @@ export const updateMatchParticipantSchema = z.object({
   participantType: participantTypeSchema.optional(),
   participantId: z.string().min(1).optional(),
   entryOrder: z.number().int().positive().nullable().optional(),
+  isChampion: z.boolean().optional(),
 });
 
 // ============================================================================

@@ -8,7 +8,6 @@ import { matchService } from '@/app/lib/services/match.service';
  * Get a specific match by ID
  * Query params:
  * - includeParticipants: include participant data (true/false)
- * - includeChampionships: include championship data (true/false)
  */
 export const GET = apiHandler(async (req: NextRequest, { params }) => {
   if (!params?.id) {
@@ -17,11 +16,9 @@ export const GET = apiHandler(async (req: NextRequest, { params }) => {
 
   const { searchParams } = new URL(req.url);
   const includeParticipants = searchParams.get('includeParticipants') === 'true';
-  const includeChampionships = searchParams.get('includeChampionships') === 'true';
 
   const match = await matchService.getById(params.id, {
     includeParticipants,
-    includeChampionships,
   });
 
   return apiSuccess(match);

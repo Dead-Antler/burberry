@@ -7,11 +7,9 @@ import { db } from '../db';
 import {
   matches,
   matchParticipants,
-  matchCombatantChampionships,
   events,
   wrestlers,
   tagTeams,
-  championships,
 } from '../schema';
 import { eq, inArray } from 'drizzle-orm';
 import { generateId, apiError } from '../api-helpers';
@@ -29,12 +27,7 @@ export interface ParticipantInput {
   participantType: 'wrestler' | 'tag_team';
   participantId: string;
   entryOrder?: number | null;
-}
-
-export interface ChampionshipInput {
-  championshipId: string;
-  participantType: 'wrestler' | 'tag_team';
-  participantId: string;
+  isChampion?: boolean;
 }
 
 export interface CreateMatchInput {
@@ -42,7 +35,6 @@ export interface CreateMatchInput {
   matchType: string;
   matchOrder: number;
   participants?: ParticipantInput[];
-  championships?: ChampionshipInput[];
 }
 
 export interface UpdateMatchInput {
@@ -79,6 +71,7 @@ async function enrichParticipants(
     participantType: string;
     participantId: string;
     entryOrder: number | null;
+    isChampion: boolean;
     createdAt: Date | null;
   }>
 ) {
@@ -128,10 +121,7 @@ export const matchService = {
    * Get a single match by ID with optional related data
    * @throws 404 if not found
    */
-  async getById(
-    id: string,
-    options?: { includeParticipants?: boolean; includeChampionships?: boolean }
-  ) {
+  async getById(id: string, options?: { includeParticipants?: boolean }) {
     const match = await ensureExists(matches, id, 'Match');
 
     const result: Record<string, unknown> = { ...match };
@@ -146,28 +136,11 @@ export const matchService = {
       result.participants = await enrichParticipants(participants);
     }
 
-    if (options?.includeChampionships) {
-      const matchChampionships = await db
-        .select({
-          id: matchCombatantChampionships.id,
-          matchId: matchCombatantChampionships.matchId,
-          championshipId: matchCombatantChampionships.championshipId,
-          participantType: matchCombatantChampionships.participantType,
-          participantId: matchCombatantChampionships.participantId,
-          championship: championships,
-        })
-        .from(matchCombatantChampionships)
-        .leftJoin(championships, eq(matchCombatantChampionships.championshipId, championships.id))
-        .where(eq(matchCombatantChampionships.matchId, id));
-
-      result.championships = matchChampionships;
-    }
-
     return result;
   },
 
   /**
-   * Create a new match with participants and championships
+   * Create a new match with participants
    * @throws 404 if event not found
    * @throws 400 if event is not open or participant references are invalid
    */
@@ -186,18 +159,10 @@ export const matchService = {
       }
     }
 
-    // Validate all championship references
-    if (input.championships && input.championships.length > 0) {
-      for (const championship of input.championships) {
-        await ensureForeignKey(championships, championship.championshipId, 'Championship');
-        await validateParticipant(championship.participantType, championship.participantId);
-      }
-    }
-
     const matchId = generateId('match');
     const { createdAt, updatedAt } = timestamps();
 
-    // Create match with participants and championships in a transaction
+    // Create match with participants in a transaction
     return withTransaction(async (tx) => {
       // Create match
       const [match] = await tx
@@ -225,20 +190,7 @@ export const matchService = {
             participantType: participant.participantType,
             participantId: participant.participantId,
             entryOrder: participant.entryOrder ?? null,
-            createdAt,
-          }))
-        );
-      }
-
-      // Add championship information
-      if (input.championships && input.championships.length > 0) {
-        await tx.insert(matchCombatantChampionships).values(
-          input.championships.map((championship) => ({
-            id: generateId('matchchamp'),
-            matchId,
-            championshipId: championship.championshipId,
-            participantType: championship.participantType,
-            participantId: championship.participantId,
+            isChampion: participant.isChampion ?? false,
             createdAt,
           }))
         );
@@ -345,6 +297,7 @@ export const matchService = {
         participantType: input.participantType,
         participantId: input.participantId,
         entryOrder: input.entryOrder ?? null,
+        isChampion: input.isChampion ?? false,
         createdAt: new Date(),
       })
       .returning();

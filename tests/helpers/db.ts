@@ -76,17 +76,6 @@ export async function setupTestDb(): Promise<LibSQLDatabase> {
   `);
 
   await db.run(sql`
-    CREATE TABLE IF NOT EXISTS championships (
-      id TEXT PRIMARY KEY,
-      name TEXT NOT NULL,
-      brandId TEXT NOT NULL REFERENCES brands(id),
-      isActive INTEGER NOT NULL DEFAULT 1,
-      createdAt INTEGER,
-      updatedAt INTEGER
-    )
-  `);
-
-  await db.run(sql`
     CREATE TABLE IF NOT EXISTS events (
       id TEXT PRIMARY KEY,
       name TEXT NOT NULL,
@@ -120,6 +109,7 @@ export async function setupTestDb(): Promise<LibSQLDatabase> {
       participantType TEXT NOT NULL,
       participantId TEXT NOT NULL,
       entryOrder INTEGER,
+      isChampion INTEGER NOT NULL DEFAULT 0,
       createdAt INTEGER
     )
   `);
@@ -214,7 +204,6 @@ export async function clearTestDb(): Promise<void> {
   await db.run(sql`DELETE FROM matchParticipants`);
   await db.run(sql`DELETE FROM matches`);
   await db.run(sql`DELETE FROM events`);
-  await db.run(sql`DELETE FROM championships`);
   await db.run(sql`DELETE FROM tagTeams`);
   await db.run(sql`DELETE FROM wrestlers`);
   await db.run(sql`DELETE FROM brands`);

@@ -29,6 +29,13 @@
       "when": 1769854810432,
       "tag": "0003_ordinary_starfox",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "6",
+      "when": 1769915366901,
+      "tag": "0004_fantastic_wildside",
+      "breakpoints": true
     }
   ]
 }

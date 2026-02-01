@@ -70,17 +70,6 @@ export const tagTeamMembers = sqliteTable('tagTeamMembers', {
   wrestlerIdx: index('tagTeamMembers_wrestlerId_idx').on(table.wrestlerId),
 }));
 
-export const championships = sqliteTable('championships', {
-  id: text('id').primaryKey(),
-  name: text('name').notNull(),
-  brandId: text('brandId').notNull().references(() => brands.id),
-  isActive: integer('isActive', { mode: 'boolean' }).notNull().default(true),
-  createdAt: integer('createdAt', { mode: 'timestamp_ms' }).$defaultFn(() => new Date()),
-  updatedAt: integer('updatedAt', { mode: 'timestamp_ms' }).$defaultFn(() => new Date()),
-}, (table) => ({
-  brandIdx: index('championships_brandId_idx').on(table.brandId),
-}));
-
 // ============================================================================
 // Events & Matches
 // ============================================================================
@@ -121,21 +110,11 @@ export const matchParticipants = sqliteTable('matchParticipants', {
   participantType: text('participantType').notNull(),
   participantId: text('participantId').notNull(),
   entryOrder: integer('entryOrder'),
+  isChampion: integer('isChampion', { mode: 'boolean' }).notNull().default(false),
   createdAt: integer('createdAt', { mode: 'timestamp_ms' }).$defaultFn(() => new Date()),
 }, (table) => ({
   matchIdx: index('matchParticipants_matchId_idx').on(table.matchId),
   participantIdx: index('matchParticipants_participantId_idx').on(table.participantId),
-}));
-
-export const matchCombatantChampionships = sqliteTable('matchCombatantChampionships', {
-  id: text('id').primaryKey(),
-  matchId: text('matchId').notNull().references(() => matches.id),
-  championshipId: text('championshipId').notNull().references(() => championships.id),
-  participantType: text('participantType').notNull(),
-  participantId: text('participantId').notNull(),
-  createdAt: integer('createdAt', { mode: 'timestamp_ms' }).$defaultFn(() => new Date()),
-}, (table) => ({
-  matchIdx: index('matchCombatantChampionships_matchId_idx').on(table.matchId),
 }));
 
 // ============================================================================

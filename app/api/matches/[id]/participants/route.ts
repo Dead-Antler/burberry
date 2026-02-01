@@ -52,6 +52,7 @@ export const POST = apiHandler(async (req: NextRequest, { params }) => {
       participantType: body.participantType,
       participantId: body.participantId,
       entryOrder: body.entryOrder ?? null,
+      isChampion: body.isChampion ?? false,
       createdAt: new Date(),
     })
     .returning();

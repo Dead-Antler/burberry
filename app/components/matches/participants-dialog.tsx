@@ -1,7 +1,7 @@
 "use client"
 
 import { useCallback, useEffect, useMemo, useState } from "react"
-import { Loader2, Plus, Trash2 } from "lucide-react"
+import { Crown, Loader2, Plus, Trash2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
@@ -10,6 +10,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
+import { Checkbox } from "@/components/ui/checkbox"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import {
@@ -69,6 +70,8 @@ export function ParticipantsDialog({
   const [participantType, setParticipantType] = useState<ParticipantType>("wrestler")
   const [selectedParticipantId, setSelectedParticipantId] = useState("")
   const [side, setSide] = useState<string>("")
+  const [isChampion, setIsChampion] = useState(false)
+  const [togglingChampionId, setTogglingChampionId] = useState<string | null>(null)
 
   // Fetch current participants for this match
   const fetchParticipants = useCallback(async () => {
@@ -109,6 +112,7 @@ export function ParticipantsDialog({
       setParticipantType("wrestler")
       setSelectedParticipantId("")
       setSide("")
+      setIsChampion(false)
       setError(null)
     }
   }, [open, match, fetchParticipants])
@@ -124,10 +128,12 @@ export function ParticipantsDialog({
         participantType,
         participantId: selectedParticipantId,
         side: side ? parseInt(side, 10) : null,
+        isChampion,
       })
       // Reset form
       setSelectedParticipantId("")
       setSide("")
+      setIsChampion(false)
       // Refetch participants to update the list
       await fetchParticipants()
       onUpdate()
@@ -159,6 +165,29 @@ export function ParticipantsDialog({
       setError(message)
     } finally {
       setRemovingId(null)
+    }
+  }
+
+  const handleToggleChampion = async (participant: MatchParticipantWithData) => {
+    if (!match) return
+
+    setTogglingChampionId(participant.id)
+    setError(null)
+
+    try {
+      await apiClient.updateMatchParticipant(match.id, participant.id, {
+        isChampion: !participant.isChampion,
+      })
+      // Refetch participants to update the list
+      await fetchParticipants()
+      onUpdate()
+    } catch (err) {
+      const message = err instanceof ApiClientError
+        ? err.message
+        : "Failed to update champion status"
+      setError(message)
+    } finally {
+      setTogglingChampionId(null)
     }
   }
 
@@ -224,6 +253,9 @@ export function ParticipantsDialog({
                       <TableHead>Name</TableHead>
                       <TableHead>Type</TableHead>
                       <TableHead>Side</TableHead>
+                      <TableHead className="w-[70px] text-center">
+                        <Crown className="h-4 w-4 mx-auto" />
+                      </TableHead>
                       <TableHead className="w-[70px]">
                         <span className="sr-only">Remove</span>
                       </TableHead>
@@ -233,7 +265,12 @@ export function ParticipantsDialog({
                     {sortedParticipants.map((participant) => (
                       <TableRow key={participant.id}>
                         <TableCell className="font-medium">
-                          {getParticipantName(participant)}
+                          <span className="flex items-center gap-1.5">
+                            {participant.isChampion && (
+                              <Crown className="h-4 w-4 text-yellow-500 shrink-0" />
+                            )}
+                            {getParticipantName(participant)}
+                          </span>
                         </TableCell>
                         <TableCell>
                           <Badge variant="outline" className="capitalize">
@@ -246,6 +283,34 @@ export function ParticipantsDialog({
                           ) : (
                             <span className="text-muted-foreground">—</span>
                           )}
+                        </TableCell>
+                        <TableCell className="text-center">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => handleToggleChampion(participant)}
+                            disabled={togglingChampionId === participant.id}
+                            aria-label={
+                              togglingChampionId === participant.id
+                                ? "Updating..."
+                                : participant.isChampion
+                                  ? "Remove champion status"
+                                  : "Mark as champion"
+                            }
+                            className="h-8 w-8"
+                          >
+                            {togglingChampionId === participant.id ? (
+                              <Loader2 className="h-4 w-4 animate-spin" />
+                            ) : (
+                              <Crown
+                                className={`h-4 w-4 ${
+                                  participant.isChampion
+                                    ? "text-yellow-500 fill-yellow-500"
+                                    : "text-muted-foreground"
+                                }`}
+                              />
+                            )}
+                          </Button>
                         </TableCell>
                         <TableCell>
                           <Button
@@ -279,7 +344,7 @@ export function ParticipantsDialog({
                 <Skeleton className="h-10 w-full" />
               </div>
             ) : (
-              <div className="grid gap-4 sm:grid-cols-[1fr_1fr_auto_auto]">
+              <div className="grid gap-4 sm:grid-cols-[1fr_1fr_auto_auto_auto]">
                 <div className="space-y-2">
                   <Label htmlFor="participant-type" className="text-xs">
                     Type
@@ -328,6 +393,20 @@ export function ParticipantsDialog({
                     onChange={(e) => setSide(e.target.value)}
                     className="w-20"
                   />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="is-champion" className="text-xs">
+                    Champ
+                  </Label>
+                  <div className="flex h-10 items-center justify-center">
+                    <Checkbox
+                      id="is-champion"
+                      checked={isChampion}
+                      onCheckedChange={(checked) => setIsChampion(checked === true)}
+                      aria-label="Is champion"
+                    />
+                  </div>
                 </div>
 
                 <div className="flex items-end">

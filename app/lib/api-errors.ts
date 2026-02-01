@@ -16,7 +16,6 @@ export const API_ERRORS = {
   WRESTLER_NAME_NOT_FOUND: 'Wrestler name record not found',
   TAG_TEAM_NOT_FOUND: 'Tag team not found',
   TAG_TEAM_MEMBER_NOT_FOUND: 'Tag team member not found',
-  CHAMPIONSHIP_NOT_FOUND: 'Championship not found',
   EVENT_NOT_FOUND: 'Event not found',
   MATCH_NOT_FOUND: 'Match not found',
   MATCH_PARTICIPANT_NOT_FOUND: 'Match participant not found',

@@ -1,6 +1,6 @@
 "use client"
 
-import { MoreHorizontal, Pencil, Trash2, UserPlus } from "lucide-react"
+import { Crown, MoreHorizontal, Pencil, Trash2, UserPlus } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import {
   DropdownMenu,
@@ -37,24 +37,25 @@ function ParticipantsList({ match }: { match: MatchWithParticipants }) {
     return <span className="text-muted-foreground italic">No participants</span>
   }
 
-  // Group participants by side
-  const sides = new Map<number | null, string[]>()
+  // Group participants by side, preserving champion status
+  const sides = new Map<number | null, Array<{ name: string; isChampion: boolean }>>()
   for (const p of match.participants) {
     const name = getParticipantName(p)
     const existing = sides.get(p.side) || []
-    existing.push(name)
+    existing.push({ name, isChampion: p.isChampion })
     sides.set(p.side, existing)
   }
 
   // Free-for-all: show as a wrapped list
   if (sides.has(null)) {
-    const names = sides.get(null) || []
+    const participants = sides.get(null) || []
     return (
       <div className="flex flex-wrap gap-1">
-        {names.map((name, i) => (
-          <span key={i}>
-            {name}
-            {i < names.length - 1 && <span className="text-muted-foreground">,</span>}
+        {participants.map((p, i) => (
+          <span key={i} className="inline-flex items-center gap-0.5">
+            {p.isChampion && <Crown className="h-3 w-3 text-yellow-500 shrink-0" />}
+            {p.name}
+            {i < participants.length - 1 && <span className="text-muted-foreground">,</span>}
           </span>
         ))}
       </div>
@@ -66,16 +67,17 @@ function ParticipantsList({ match }: { match: MatchWithParticipants }) {
 
   return (
     <div className="flex flex-col gap-0.5">
-      {sideEntries.map(([sideNum, names], index) => (
+      {sideEntries.map(([sideNum, participants], index) => (
         <div key={sideNum} className="flex items-center gap-1">
           {index > 0 && (
             <span className="text-xs text-muted-foreground font-medium mr-1">vs</span>
           )}
           <span>
-            {names.map((name, i) => (
-              <span key={i}>
-                {name}
-                {i < names.length - 1 && (
+            {participants.map((p, i) => (
+              <span key={i} className="inline-flex items-center gap-0.5">
+                {p.isChampion && <Crown className="h-3 w-3 text-yellow-500 shrink-0" />}
+                {p.name}
+                {i < participants.length - 1 && (
                   <span className="text-muted-foreground"> &amp; </span>
                 )}
               </span>

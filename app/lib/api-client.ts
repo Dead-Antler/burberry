@@ -17,11 +17,7 @@ import type {
   UpdateTagTeamRequest,
   AddTagTeamMemberRequest,
   UpdateTagTeamMemberRequest,
-  Championship,
-  CreateChampionshipRequest,
-  UpdateChampionshipRequest,
   Event,
-  EventWithMatches,
   CreateEventRequest,
   UpdateEventRequest,
   Match,
@@ -246,45 +242,6 @@ class ApiClient {
   }
 
   // ============================================================================
-  // Championships
-  // ============================================================================
-
-  async getChampionships(params?: {
-    brandId?: string;
-    isActive?: boolean;
-  }): Promise<Championship[]> {
-    const query = new URLSearchParams();
-    if (params?.brandId) query.set('brandId', params.brandId);
-    if (params?.isActive !== undefined) query.set('isActive', String(params.isActive));
-
-    return this.request(`/api/championships?${query}`);
-  }
-
-  async getChampionship(id: string): Promise<Championship> {
-    return this.request(`/api/championships/${id}`);
-  }
-
-  async createChampionship(data: CreateChampionshipRequest): Promise<Championship> {
-    return this.request('/api/championships', {
-      method: 'POST',
-      body: JSON.stringify(data),
-    });
-  }
-
-  async updateChampionship(id: string, data: UpdateChampionshipRequest): Promise<Championship> {
-    return this.request(`/api/championships/${id}`, {
-      method: 'PATCH',
-      body: JSON.stringify(data),
-    });
-  }
-
-  async deleteChampionship(id: string): Promise<{ message: string; id: string }> {
-    return this.request(`/api/championships/${id}`, {
-      method: 'DELETE',
-    });
-  }
-
-  // ============================================================================
   // Events
   // ============================================================================
 
@@ -345,11 +302,10 @@ class ApiClient {
 
   async getMatch(
     id: string,
-    params?: { includeParticipants?: boolean; includeChampionships?: boolean }
+    params?: { includeParticipants?: boolean }
   ): Promise<Match | MatchWithParticipants> {
     const query = new URLSearchParams();
     if (params?.includeParticipants) query.set('includeParticipants', 'true');
-    if (params?.includeChampionships) query.set('includeChampionships', 'true');
 
     return this.request(`/api/matches/${id}?${query}`);
   }

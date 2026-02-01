@@ -14,11 +14,11 @@ The system implements role-based access control with two user roles:
 
 **Normal Users** can:
 - ✅ Make and manage their own predictions (match predictions, custom predictions, contrarian mode)
-- ✅ View all data (brands, wrestlers, tag teams, championships, events, matches, leaderboards)
+- ✅ View all data (brands, wrestlers, tag teams, events, matches, leaderboards)
 
 **Admins** can:
 - ✅ Everything normal users can do, PLUS:
-- ✅ Create, update, and delete all entities (brands, wrestlers, tag teams, championships, events, matches)
+- ✅ Create, update, and delete all entities (brands, wrestlers, tag teams, events, matches)
 - ✅ Enter match results and custom prediction answers
 - ✅ Change event status (open → locked → completed)
 - ✅ Trigger event scoring
@@ -263,48 +263,6 @@ DELETE /api/tag-teams/:id/members/:memberId
 
 ---
 
-## Championships
-
-### List All Championships
-```
-GET /api/championships?brandId=xxx&isActive=true
-```
-
-### Get Championship
-```
-GET /api/championships/:id
-```
-
-### Create Championship `[ADMIN ONLY]`
-```
-POST /api/championships
-Content-Type: application/json
-
-{
-  "name": "WWE Championship",
-  "brandId": "brand_...",
-  "isActive": true
-}
-```
-
-### Update Championship `[ADMIN ONLY]`
-```
-PATCH /api/championships/:id
-Content-Type: application/json
-
-{
-  "name": "WWE Universal Championship",
-  "isActive": true
-}
-```
-
-### Delete Championship (Soft Delete) `[ADMIN ONLY]`
-```
-DELETE /api/championships/:id
-```
-
----
-
 ## Events
 
 ### List All Events
@@ -411,19 +369,13 @@ Content-Type: application/json
     {
       "side": 1,
       "participantType": "wrestler",
-      "participantId": "wrestler_1"
+      "participantId": "wrestler_1",
+      "isChampion": true
     },
     {
       "side": 2,
       "participantType": "wrestler",
       "participantId": "wrestler_2"
-    }
-  ],
-  "championships": [
-    {
-      "championshipId": "championship_...",
-      "participantType": "wrestler",
-      "participantId": "wrestler_1"
     }
   ]
 }
@@ -434,9 +386,12 @@ Content-Type: application/json
 - **Free-for-All** (Battle Royal, Royal Rumble): Set `side` to `null`
 - **Royal Rumble**: Additionally set `entryOrder` (1-30)
 
+**Champion Status:**
+- Set `isChampion: true` on a participant to indicate they hold a championship at the time of the match
+
 ### Get Match
 ```
-GET /api/matches/:id?includeParticipants=true&includeChampionships=true
+GET /api/matches/:id?includeParticipants=true
 ```
 
 ### Update Match (Set Results) `[ADMIN ONLY]`
@@ -496,7 +451,8 @@ Content-Type: application/json
   "side": 1,
   "participantType": "wrestler",
   "participantId": "wrestler_...",
-  "entryOrder": null
+  "entryOrder": null,
+  "isChampion": false
 }
 ```
 
@@ -507,7 +463,8 @@ Content-Type: application/json
 
 {
   "side": 2,
-  "entryOrder": 15
+  "entryOrder": 15,
+  "isChampion": true
 }
 ```
 
@@ -813,11 +770,8 @@ POST /api/matches
   "matchType": "singles",
   "matchOrder": 1,
   "participants": [
-    { "side": 1, "participantType": "wrestler", "participantId": "roman" },
+    { "side": 1, "participantType": "wrestler", "participantId": "roman", "isChampion": true },
     { "side": 2, "participantType": "wrestler", "participantId": "cody" }
-  ],
-  "championships": [
-    { "championshipId": "wwe_championship", "participantType": "wrestler", "participantId": "roman" }
   ]
 }
 ```
@@ -943,4 +897,4 @@ See `app/lib/schema.ts` for full Drizzle schema definitions. All API responses u
 
 ---
 
-**Last Updated:** 2026-01-31
+**Last Updated:** 2026-02-01

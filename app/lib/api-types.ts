@@ -143,31 +143,6 @@ export type UpdateTagTeamMemberRequest = {
 };
 
 // ============================================================================
-// Championship Types
-// ============================================================================
-
-export type Championship = {
-  id: string;
-  name: string;
-  brandId: string;
-  isActive: boolean;
-  createdAt: Date | string;
-  updatedAt: Date | string;
-};
-
-export type CreateChampionshipRequest = {
-  name: string;
-  brandId: string;
-  isActive?: boolean;
-};
-
-export type UpdateChampionshipRequest = {
-  name?: string;
-  brandId?: string;
-  isActive?: boolean;
-};
-
-// ============================================================================
 // Event Types
 // ============================================================================
 
@@ -230,6 +205,7 @@ export type MatchParticipant = {
   participantType: 'wrestler' | 'tag_team';
   participantId: string;
   entryOrder: number | null;
+  isChampion: boolean;
   createdAt: Date | string;
 };
 
@@ -241,19 +217,6 @@ export type MatchWithParticipants = Match & {
   participants: MatchParticipantWithData[];
 };
 
-export type MatchCombatantChampionship = {
-  id: string;
-  matchId: string;
-  championshipId: string;
-  participantType: 'wrestler' | 'tag_team';
-  participantId: string;
-  createdAt: Date | string;
-};
-
-export type MatchCombatantChampionshipWithData = MatchCombatantChampionship & {
-  championship: Championship;
-};
-
 export type CreateMatchRequest = {
   eventId: string;
   matchType: string;
@@ -263,11 +226,7 @@ export type CreateMatchRequest = {
     participantType: 'wrestler' | 'tag_team';
     participantId: string;
     entryOrder?: number | null;
-  }>;
-  championships?: Array<{
-    championshipId: string;
-    participantType: 'wrestler' | 'tag_team';
-    participantId: string;
+    isChampion?: boolean;
   }>;
 };
 
@@ -284,11 +243,13 @@ export type CreateMatchParticipantRequest = {
   participantType: 'wrestler' | 'tag_team';
   participantId: string;
   entryOrder?: number | null;
+  isChampion?: boolean;
 };
 
 export type UpdateMatchParticipantRequest = {
   side?: number | null;
   entryOrder?: number | null;
+  isChampion?: boolean;
 };
 
 // ============================================================================
@@ -461,11 +422,6 @@ export type TagTeamQueryParams = {
   includeMembers?: boolean;
 };
 
-export type ChampionshipQueryParams = {
-  brandId?: string;
-  isActive?: boolean;
-};
-
 export type EventQueryParams = {
   brandId?: string;
   status?: EventStatus;
@@ -477,7 +433,6 @@ export type EventQueryParams = {
 
 export type MatchQueryParams = {
   includeParticipants?: boolean;
-  includeChampionships?: boolean;
 };
 
 export type MatchPredictionQueryParams = {
