@@ -11,7 +11,7 @@
     "test:watch": "bun test --watch",
     "test:coverage": "bun test --coverage",
     "db:generate": "drizzle-kit generate",
-    "db:migrate": "drizzle-kit migrate",
+    "db:migrate": "tsx --env-file=.env scripts/migrate.ts",
     "db:studio": "drizzle-kit studio",
     "db:create-user": "tsx --env-file=.env scripts/create-user.ts"
   },

@@ -1,6 +1,8 @@
 import { drizzle } from 'drizzle-orm/libsql';
 import { migrate } from 'drizzle-orm/libsql/migrator';
 import { createClient } from '@libsql/client';
+import { mkdirSync, existsSync } from 'fs';
+import { dirname } from 'path';
 
 let migrationRun = false;
 
@@ -16,6 +18,13 @@ export async function runMigrations() {
   }
 
   console.log('Running database migrations...');
+
+  // Ensure database directory exists (libsql creates the file, but not the directory)
+  const filePath = process.env.DB_FILE_NAME!.replace(/^file:/, '');
+  const dir = dirname(filePath);
+  if (!existsSync(dir)) {
+    mkdirSync(dir, { recursive: true });
+  }
 
   try {
     const client = createClient({
