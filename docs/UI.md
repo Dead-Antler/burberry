@@ -223,6 +223,22 @@ Use AlertDialog for destructive actions:
 </AlertDialog>
 ```
 
+**Important**: Always reset loading state on both success AND error. The dialog component is reused, so stale state persists when reopened:
+
+```tsx
+const handleDelete = async () => {
+  setIsDeleting(true)
+  try {
+    await apiClient.deleteEntity(entity.id)
+    setIsDeleting(false)  // Reset BEFORE calling onSuccess
+    onSuccess(entity.id)
+  } catch (err) {
+    setError(err.message)
+    setIsDeleting(false)
+  }
+}
+```
+
 ## State Management
 
 ### Page-Level State

@@ -31,10 +31,19 @@ interface EventDialogProps {
 }
 
 const STATUS_OPTIONS: { value: EventStatus; label: string }[] = [
+  { value: "upcoming", label: "Upcoming" },
   { value: "open", label: "Open" },
   { value: "locked", label: "Locked" },
   { value: "completed", label: "Completed" },
 ]
+
+// Valid status transitions (current status -> allowed next statuses)
+const VALID_TRANSITIONS: Record<EventStatus, EventStatus[]> = {
+  upcoming: ["upcoming", "open"],
+  open: ["open", "locked"],
+  locked: ["locked", "completed"],
+  completed: ["completed"],
+}
 
 function formatDateForInput(date: Date | string): string {
   const d = new Date(date)
@@ -51,7 +60,7 @@ export function EventDialog({
   const [name, setName] = useState("")
   const [brandId, setBrandId] = useState("")
   const [eventDate, setEventDate] = useState("")
-  const [status, setStatus] = useState<EventStatus>("open")
+  const [status, setStatus] = useState<EventStatus>("upcoming")
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -63,7 +72,7 @@ export function EventDialog({
       setName(event?.name ?? "")
       setBrandId(event?.brandId ?? (brands[0]?.id ?? ""))
       setEventDate(event ? formatDateForInput(event.eventDate) : "")
-      setStatus(event?.status ?? "open")
+      setStatus(event?.status ?? "upcoming")
       setError(null)
     }
   }, [open, event, brands])
@@ -184,7 +193,11 @@ export function EventDialog({
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  {STATUS_OPTIONS.map((option) => (
+                  {STATUS_OPTIONS.filter((option) =>
+                    isEditing
+                      ? VALID_TRANSITIONS[event.status].includes(option.value)
+                      : true
+                  ).map((option) => (
                     <SelectItem key={option.value} value={option.value}>
                       {option.label}
                     </SelectItem>

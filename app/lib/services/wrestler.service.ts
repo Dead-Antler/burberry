@@ -3,8 +3,8 @@
  */
 
 import { db } from '../db';
-import { wrestlers, wrestlerNames, brands } from '../schema';
-import { eq, and, isNull, asc, desc, SQL } from 'drizzle-orm';
+import { wrestlers, wrestlerNames, brands, groupMembers, groups } from '../schema';
+import { eq, and, isNull, asc, desc, SQL, inArray, like } from 'drizzle-orm';
 import { generateId } from '../api-helpers';
 import type { PaginationParams } from '../api-helpers';
 import {
@@ -32,6 +32,7 @@ export interface UpdateWrestlerInput {
 export interface ListWrestlersParams extends PaginationParams {
   brandId?: string;
   isActive?: boolean;
+  search?: string;
 }
 
 /**
@@ -53,6 +54,10 @@ export const wrestlerService = {
       conditions.push(eq(wrestlers.isActive, params.isActive));
     }
 
+    if (params.search) {
+      conditions.push(like(wrestlers.currentName, `%${params.search}%`));
+    }
+
     const where = conditions.length > 0 ? and(...conditions) : undefined;
 
     // Build order by clause
@@ -70,6 +75,54 @@ export const wrestlerService = {
       orderBy,
       pagination: params,
     });
+
+    return { data, total };
+  },
+
+  /**
+   * List wrestlers with their current group memberships
+   * Uses batch loading to avoid N+1 queries
+   */
+  async listWithGroups(params: ListWrestlersParams) {
+    // First, get wrestlers using existing list method
+    const { data: wrestlerData, total } = await this.list(params);
+
+    if (wrestlerData.length === 0) {
+      return { data: [], total: 0 };
+    }
+
+    // Batch query current group memberships for all wrestlers
+    const wrestlerIds = wrestlerData.map((w) => w.id);
+
+    const memberships = await db
+      .select({
+        wrestlerId: groupMembers.wrestlerId,
+        groupId: groups.id,
+        groupName: groups.name,
+      })
+      .from(groupMembers)
+      .innerJoin(groups, eq(groupMembers.groupId, groups.id))
+      .where(
+        and(inArray(groupMembers.wrestlerId, wrestlerIds), isNull(groupMembers.leftAt))
+      );
+
+    // Map memberships to wrestlers
+    const groupsByWrestler = new Map<string, Array<{ id: string; name: string }>>();
+    for (const m of memberships) {
+      if (!groupsByWrestler.has(m.wrestlerId)) {
+        groupsByWrestler.set(m.wrestlerId, []);
+      }
+      groupsByWrestler.get(m.wrestlerId)!.push({
+        id: m.groupId,
+        name: m.groupName,
+      });
+    }
+
+    // Combine wrestlers with their groups
+    const data = wrestlerData.map((wrestler) => ({
+      ...wrestler,
+      groups: groupsByWrestler.get(wrestler.id) || [],
+    }));
 
     return { data, total };
   },

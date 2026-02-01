@@ -12,8 +12,6 @@ import {
   userCustomPredictions,
   customPredictionTemplates,
   userEventContrarian,
-  wrestlers,
-  tagTeams,
   brands,
 } from '../schema';
 import { eq, and, gte, lte, inArray, asc, desc, or, SQL } from 'drizzle-orm';
@@ -27,20 +25,22 @@ import {
   timestamps,
   updatedTimestamp,
 } from '../entities';
+import { VALID_STATUS_TRANSITIONS, type EventStatus } from '../event-status';
+import { matchService } from './match.service';
 
 // Input types
 export interface CreateEventInput {
   name: string;
   brandId: string;
   eventDate: string | Date;
-  status?: 'open' | 'locked' | 'completed';
+  status?: 'upcoming' | 'open' | 'locked' | 'completed';
 }
 
 export interface UpdateEventInput {
   name?: string;
   brandId?: string;
   eventDate?: string | Date;
-  status?: 'open' | 'locked' | 'completed';
+  status?: 'upcoming' | 'open' | 'locked' | 'completed';
 }
 
 export interface ListEventsParams extends PaginationParams {
@@ -52,12 +52,6 @@ export interface ListEventsParams extends PaginationParams {
   includeMatches?: boolean;
 }
 
-// Valid status transitions
-const VALID_STATUS_TRANSITIONS: Record<string, string[]> = {
-  open: ['locked'],
-  locked: ['completed'],
-  completed: [],
-};
 
 // ============================================================================
 // Scoring Helper Types
@@ -398,54 +392,23 @@ export const eventService = {
           ? await db.select().from(matchParticipants).where(inArray(matchParticipants.matchId, matchIds))
           : [];
 
-      // Collect unique wrestler and tag team IDs
-      const wrestlerIds = new Set<string>();
-      const tagTeamIds = new Set<string>();
+      // Use shared enrichParticipants function (fixes code duplication)
+      const enrichedParticipants = await matchService.enrichParticipants(allParticipants);
 
-      for (const p of allParticipants) {
-        if (p.participantType === 'wrestler') {
-          wrestlerIds.add(p.participantId);
-        } else {
-          tagTeamIds.add(p.participantId);
-        }
-      }
-
-      // Fetch all wrestlers and tag teams in 2 queries (parallel)
-      const [allWrestlers, allTagTeams] = await Promise.all([
-        wrestlerIds.size > 0
-          ? db.select().from(wrestlers).where(inArray(wrestlers.id, Array.from(wrestlerIds)))
-          : Promise.resolve([]),
-        tagTeamIds.size > 0
-          ? db.select().from(tagTeams).where(inArray(tagTeams.id, Array.from(tagTeamIds)))
-          : Promise.resolve([]),
-      ]);
-
-      // Create lookup maps
-      const wrestlerMap = new Map(allWrestlers.map((w) => [w.id, w]));
-      const tagTeamMap = new Map(allTagTeams.map((t) => [t.id, t]));
-
-      // Group participants by matchId
-      const participantsByMatch = new Map<string, typeof allParticipants>();
-      for (const p of allParticipants) {
+      // Group enriched participants by matchId
+      const participantsByMatch = new Map<string, typeof enrichedParticipants>();
+      for (const p of enrichedParticipants) {
         if (!participantsByMatch.has(p.matchId)) {
           participantsByMatch.set(p.matchId, []);
         }
         participantsByMatch.get(p.matchId)!.push(p);
       }
 
-      // Build enriched matches
-      const matchesWithParticipants = eventMatches.map((match) => {
-        const participants = participantsByMatch.get(match.id) || [];
-        const enrichedParticipants = participants.map((p) => ({
-          ...p,
-          participant:
-            p.participantType === 'wrestler'
-              ? wrestlerMap.get(p.participantId)
-              : tagTeamMap.get(p.participantId),
-        }));
-
-        return { ...match, participants: enrichedParticipants };
-      });
+      // Build matches with participants
+      const matchesWithParticipants = eventMatches.map((match) => ({
+        ...match,
+        participants: participantsByMatch.get(match.id) || [],
+      }));
 
       result.matches = matchesWithParticipants;
     }
@@ -479,7 +442,7 @@ export const eventService = {
         name: input.name,
         brandId: input.brandId,
         eventDate: new Date(input.eventDate),
-        status: input.status ?? 'open',
+        status: input.status ?? 'upcoming',
         ...timestamps(),
       })
       .returning();
@@ -503,7 +466,8 @@ export const eventService = {
 
     // Validate status transition
     if (input.status && input.status !== currentEvent.status) {
-      const validTransitions = VALID_STATUS_TRANSITIONS[currentEvent.status] || [];
+      const currentStatus = currentEvent.status as EventStatus;
+      const validTransitions = VALID_STATUS_TRANSITIONS[currentStatus] || [];
       if (!validTransitions.includes(input.status)) {
         throw apiError(`Cannot transition from ${currentEvent.status} to ${input.status}`, 400);
       }

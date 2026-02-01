@@ -12,11 +12,18 @@ export type ApiResponse<T> = {
   error?: string;
 };
 
+export type PaginationInfo = {
+  page: number;
+  limit: number;
+  total: number;
+  totalPages: number;
+  hasNext: boolean;
+  hasPrev: boolean;
+};
+
 export type PaginatedResponse<T> = {
   data: T[];
-  total: number;
-  page: number;
-  pageSize: number;
+  pagination: PaginationInfo;
 };
 
 // ============================================================================
@@ -90,11 +97,20 @@ export type UpdateWrestlerRequest = {
   isActive?: boolean;
 };
 
+export type WrestlerGroupInfo = {
+  id: string;
+  name: string;
+};
+
+export type WrestlerWithGroups = Wrestler & {
+  groups: WrestlerGroupInfo[];
+};
+
 // ============================================================================
-// Tag Team Types
+// Group Types
 // ============================================================================
 
-export type TagTeam = {
+export type Group = {
   id: string;
   name: string;
   brandId: string;
@@ -103,42 +119,42 @@ export type TagTeam = {
   updatedAt: Date | string;
 };
 
-export type TagTeamMember = {
+export type GroupMember = {
   id: string;
-  tagTeamId: string;
+  groupId: string;
   wrestlerId: string;
   joinedAt: Date | string;
   leftAt: Date | string | null;
   createdAt: Date | string;
 };
 
-export type TagTeamMemberWithWrestler = TagTeamMember & {
+export type GroupMemberWithWrestler = GroupMember & {
   wrestlerName: string;
 };
 
-export type TagTeamWithMembers = TagTeam & {
-  members: TagTeamMemberWithWrestler[];
+export type GroupWithMembers = Group & {
+  members: GroupMemberWithWrestler[];
 };
 
-export type CreateTagTeamRequest = {
+export type CreateGroupRequest = {
   name: string;
   brandId: string;
   isActive?: boolean;
   memberIds?: string[];
 };
 
-export type UpdateTagTeamRequest = {
+export type UpdateGroupRequest = {
   name?: string;
   brandId?: string;
   isActive?: boolean;
 };
 
-export type AddTagTeamMemberRequest = {
+export type AddGroupMemberRequest = {
   wrestlerId: string;
   joinedAt?: Date | string;
 };
 
-export type UpdateTagTeamMemberRequest = {
+export type UpdateGroupMemberRequest = {
   leftAt?: Date | string | null;
 };
 
@@ -146,7 +162,7 @@ export type UpdateTagTeamMemberRequest = {
 // Event Types
 // ============================================================================
 
-export type EventStatus = 'open' | 'locked' | 'completed';
+export type EventStatus = 'upcoming' | 'open' | 'locked' | 'completed';
 
 export type Event = {
   id: string;
@@ -191,6 +207,7 @@ export type Match = {
   eventId: string;
   matchType: string;
   matchOrder: number;
+  unknownParticipants: boolean;
   outcome: MatchOutcome | null;
   winningSide: number | null;
   winnerParticipantId: string | null;
@@ -202,7 +219,7 @@ export type MatchParticipant = {
   id: string;
   matchId: string;
   side: number | null;
-  participantType: 'wrestler' | 'tag_team';
+  participantType: 'wrestler' | 'group';
   participantId: string;
   entryOrder: number | null;
   isChampion: boolean;
@@ -210,7 +227,8 @@ export type MatchParticipant = {
 };
 
 export type MatchParticipantWithData = MatchParticipant & {
-  participant: Wrestler | TagTeam;
+  participant: Wrestler | Group;
+  groups?: WrestlerGroupInfo[]; // Only populated for wrestler participants
 };
 
 export type MatchWithParticipants = Match & {
@@ -221,9 +239,10 @@ export type CreateMatchRequest = {
   eventId: string;
   matchType: string;
   matchOrder: number;
+  unknownParticipants?: boolean;
   participants: Array<{
     side: number | null;
-    participantType: 'wrestler' | 'tag_team';
+    participantType: 'wrestler' | 'group';
     participantId: string;
     entryOrder?: number | null;
     isChampion?: boolean;
@@ -233,6 +252,7 @@ export type CreateMatchRequest = {
 export type UpdateMatchRequest = {
   matchType?: string;
   matchOrder?: number;
+  unknownParticipants?: boolean;
   outcome?: MatchOutcome | null;
   winningSide?: number | null;
   winnerParticipantId?: string | null;
@@ -240,7 +260,7 @@ export type UpdateMatchRequest = {
 
 export type CreateMatchParticipantRequest = {
   side: number | null;
-  participantType: 'wrestler' | 'tag_team';
+  participantType: 'wrestler' | 'group';
   participantId: string;
   entryOrder?: number | null;
   isChampion?: boolean;
@@ -416,7 +436,7 @@ export type WrestlerQueryParams = {
   includeHistory?: boolean;
 };
 
-export type TagTeamQueryParams = {
+export type GroupQueryParams = {
   brandId?: string;
   isActive?: boolean;
   includeMembers?: boolean;

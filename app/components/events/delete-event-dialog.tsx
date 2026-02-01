@@ -38,6 +38,7 @@ export function DeleteEventDialog({
 
     try {
       await apiClient.deleteEvent(event.id)
+      setIsDeleting(false)
       onSuccess(event.id)
     } catch (err) {
       const message = err instanceof ApiClientError

@@ -14,8 +14,8 @@ export const API_ERRORS = {
   BRAND_NOT_FOUND: 'Brand not found',
   WRESTLER_NOT_FOUND: 'Wrestler not found',
   WRESTLER_NAME_NOT_FOUND: 'Wrestler name record not found',
-  TAG_TEAM_NOT_FOUND: 'Tag team not found',
-  TAG_TEAM_MEMBER_NOT_FOUND: 'Tag team member not found',
+  GROUP_NOT_FOUND: 'Group not found',
+  GROUP_MEMBER_NOT_FOUND: 'Group member not found',
   EVENT_NOT_FOUND: 'Event not found',
   MATCH_NOT_FOUND: 'Match not found',
   MATCH_PARTICIPANT_NOT_FOUND: 'Match participant not found',
@@ -28,7 +28,7 @@ export const API_ERRORS = {
   MISSING_FIELDS: (fields: string[]) => `Missing required fields: ${fields.join(', ')}`,
   INVALID_EVENT_STATUS: 'Invalid event status. Must be: open, locked, or completed',
   INVALID_MATCH_TYPE: 'Invalid match type',
-  INVALID_PARTICIPANT_TYPE: 'Invalid participant type. Must be: wrestler or tag_team',
+  INVALID_PARTICIPANT_TYPE: 'Invalid participant type. Must be: wrestler or group',
   INVALID_PREDICTION_TYPE: 'Invalid prediction type',
 
   // Business logic errors (400)

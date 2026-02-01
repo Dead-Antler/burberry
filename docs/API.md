@@ -14,11 +14,11 @@ The system implements role-based access control with two user roles:
 
 **Normal Users** can:
 - ✅ Make and manage their own predictions (match predictions, custom predictions, contrarian mode)
-- ✅ View all data (brands, wrestlers, tag teams, events, matches, leaderboards)
+- ✅ View all data (brands, wrestlers, groups, events, matches, leaderboards)
 
 **Admins** can:
 - ✅ Everything normal users can do, PLUS:
-- ✅ Create, update, and delete all entities (brands, wrestlers, tag teams, events, matches)
+- ✅ Create, update, and delete all entities (brands, wrestlers, groups, events, matches)
 - ✅ Enter match results and custom prediction answers
 - ✅ Change event status (open → locked → completed)
 - ✅ Trigger event scoring
@@ -180,11 +180,11 @@ GET /api/wrestlers/:id/names
 
 ---
 
-## Tag Teams
+## Groups
 
-### List All Tag Teams
+### List All Groups
 ```
-GET /api/tag-teams?brandId=xxx&isActive=true&includeMembers=true
+GET /api/groups?brandId=xxx&isActive=true&includeMembers=true
 ```
 
 **Query Parameters:**
@@ -192,14 +192,14 @@ GET /api/tag-teams?brandId=xxx&isActive=true&includeMembers=true
 - `isActive` (optional): Filter by active status
 - `includeMembers` (optional): Include current members with wrestler data
 
-### Get Tag Team
+### Get Group
 ```
-GET /api/tag-teams/:id?includeMembers=true
+GET /api/groups/:id?includeMembers=true
 ```
 
-### Create Tag Team `[ADMIN ONLY]`
+### Create Group `[ADMIN ONLY]`
 ```
-POST /api/tag-teams
+POST /api/groups
 Content-Type: application/json
 
 {
@@ -210,9 +210,9 @@ Content-Type: application/json
 }
 ```
 
-### Update Tag Team `[ADMIN ONLY]`
+### Update Group `[ADMIN ONLY]`
 ```
-PATCH /api/tag-teams/:id
+PATCH /api/groups/:id
 Content-Type: application/json
 
 {
@@ -222,22 +222,22 @@ Content-Type: application/json
 }
 ```
 
-### Delete Tag Team (Soft Delete) `[ADMIN ONLY]`
+### Delete Group (Soft Delete) `[ADMIN ONLY]`
 ```
-DELETE /api/tag-teams/:id
+DELETE /api/groups/:id
 ```
 
-### Get Tag Team Members
+### Get Group Members
 ```
-GET /api/tag-teams/:id/members?current=true
+GET /api/groups/:id/members?current=true
 ```
 
 **Query Parameters:**
 - `current` (optional): Only show current members (where `leftAt` is null)
 
-### Add Member to Tag Team `[ADMIN ONLY]`
+### Add Member to Group `[ADMIN ONLY]`
 ```
-POST /api/tag-teams/:id/members
+POST /api/groups/:id/members
 Content-Type: application/json
 
 {
@@ -248,7 +248,7 @@ Content-Type: application/json
 
 ### Update Member `[ADMIN ONLY]`
 ```
-PATCH /api/tag-teams/:id/members/:memberId
+PATCH /api/groups/:id/members/:memberId
 Content-Type: application/json
 
 {
@@ -258,7 +258,7 @@ Content-Type: application/json
 
 ### Remove Member `[ADMIN ONLY]`
 ```
-DELETE /api/tag-teams/:id/members/:memberId
+DELETE /api/groups/:id/members/:memberId
 ```
 
 ---

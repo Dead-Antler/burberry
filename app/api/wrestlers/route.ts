@@ -26,6 +26,7 @@ export const GET = apiHandler(async (req: NextRequest) => {
     ...pagination,
     brandId: query.brandId,
     isActive: query.isActive,
+    search: query.search,
   });
 
   return apiSuccess(createPaginatedResponse(data, total, pagination));

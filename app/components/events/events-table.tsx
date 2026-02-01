@@ -42,6 +42,7 @@ function formatDate(date: Date | string): string {
 
 function StatusBadge({ status }: { status: EventStatus }) {
   const variants: Record<EventStatus, "default" | "secondary" | "destructive" | "outline"> = {
+    upcoming: "outline",
     open: "default",
     locked: "secondary",
     completed: "outline",

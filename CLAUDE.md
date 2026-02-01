@@ -82,14 +82,14 @@ scripts/
 | Category | Tables |
 |----------|--------|
 | Users | `users` |
-| Wrestling | `brands`, `wrestlers`, `wrestlerNames`, `tagTeams`, `tagTeamMembers` |
+| Wrestling | `brands`, `wrestlers`, `wrestlerNames`, `groups`, `groupMembers` |
 | Events | `events`, `matches`, `matchParticipants` |
 | Predictions | `matchPredictions`, `customPredictionTemplates`, `eventCustomPredictions`, `userCustomPredictions`, `userEventContrarian` |
 
 ### Key Relationships
 - Wrestlers belong to brands, can have name history
-- Tag teams have members with join/leave dates
-- Matches have flexible participant system (polymorphic: wrestler or tag_team)
+- Groups have members with join/leave dates
+- Matches have flexible participant system (polymorphic: wrestler or group)
 - Match participants have optional `isChampion` flag to indicate champion status
 - Predictions support team matches (winningSide) and free-for-alls (winnerParticipantId)
 

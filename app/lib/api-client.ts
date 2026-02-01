@@ -7,16 +7,18 @@ import type {
   CreateBrandRequest,
   UpdateBrandRequest,
   Wrestler,
+  WrestlerWithGroups,
   WrestlerWithHistory,
   CreateWrestlerRequest,
   UpdateWrestlerRequest,
   WrestlerName,
-  TagTeam,
-  TagTeamWithMembers,
-  CreateTagTeamRequest,
-  UpdateTagTeamRequest,
-  AddTagTeamMemberRequest,
-  UpdateTagTeamMemberRequest,
+  Group,
+  GroupWithMembers,
+  GroupMember,
+  CreateGroupRequest,
+  UpdateGroupRequest,
+  AddGroupMemberRequest,
+  UpdateGroupMemberRequest,
   Event,
   CreateEventRequest,
   UpdateEventRequest,
@@ -27,6 +29,7 @@ import type {
   CreateMatchParticipantRequest,
   UpdateMatchParticipantRequest,
   MatchPrediction,
+  PaginationInfo,
   CreateMatchPredictionRequest,
   UpdateMatchPredictionRequest,
   EventCustomPrediction,
@@ -140,12 +143,33 @@ class ApiClient {
   async getWrestlers(params?: {
     brandId?: string;
     isActive?: boolean;
-  }): Promise<Wrestler[]> {
+    search?: string;
+    page?: number;
+    limit?: number;
+  }): Promise<{ data: Wrestler[]; pagination: PaginationInfo }> {
     const query = new URLSearchParams();
     if (params?.brandId) query.set('brandId', params.brandId);
     if (params?.isActive !== undefined) query.set('isActive', String(params.isActive));
+    if (params?.search) query.set('search', params.search);
+    if (params?.page) query.set('page', String(params.page));
+    if (params?.limit) query.set('limit', String(params.limit));
 
-    const response = await this.request<{ data: Wrestler[] }>(`/api/wrestlers?${query}`);
+    return this.request<{ data: Wrestler[]; pagination: PaginationInfo }>(`/api/wrestlers?${query}`);
+  }
+
+  async getAllWrestlers(params?: {
+    brandId?: string;
+    isActive?: boolean;
+    includeGroups?: boolean;
+  }): Promise<Wrestler[] | WrestlerWithGroups[]> {
+    const query = new URLSearchParams();
+    if (params?.brandId) query.set('brandId', params.brandId);
+    if (params?.isActive !== undefined) query.set('isActive', String(params.isActive));
+    if (params?.includeGroups) query.set('includeGroups', 'true');
+
+    const response = await this.request<{ data: Wrestler[] | WrestlerWithGroups[] }>(
+      `/api/wrestlers/all?${query}`
+    );
     return response.data;
   }
 
@@ -179,64 +203,83 @@ class ApiClient {
   }
 
   // ============================================================================
-  // Tag Teams
+  // Groups
   // ============================================================================
 
-  async getTagTeams(params?: {
+  async getGroups(params?: {
     brandId?: string;
     isActive?: boolean;
     includeMembers?: boolean;
-  }): Promise<TagTeam[] | TagTeamWithMembers[]> {
+    search?: string;
+    page?: number;
+    limit?: number;
+  }): Promise<{ data: Group[] | GroupWithMembers[]; pagination: PaginationInfo }> {
+    const query = new URLSearchParams();
+    if (params?.brandId) query.set('brandId', params.brandId);
+    if (params?.isActive !== undefined) query.set('isActive', String(params.isActive));
+    if (params?.includeMembers) query.set('includeMembers', 'true');
+    if (params?.search) query.set('search', params.search);
+    if (params?.page) query.set('page', String(params.page));
+    if (params?.limit) query.set('limit', String(params.limit));
+
+    return this.request<{ data: Group[] | GroupWithMembers[]; pagination: PaginationInfo }>(`/api/groups?${query}`);
+  }
+
+  async getAllGroups(params?: {
+    brandId?: string;
+    isActive?: boolean;
+    includeMembers?: boolean;
+  }): Promise<Group[] | GroupWithMembers[]> {
     const query = new URLSearchParams();
     if (params?.brandId) query.set('brandId', params.brandId);
     if (params?.isActive !== undefined) query.set('isActive', String(params.isActive));
     if (params?.includeMembers) query.set('includeMembers', 'true');
 
-    const response = await this.request<{ data: TagTeam[] | TagTeamWithMembers[] }>(`/api/tag-teams?${query}`);
+    const response = await this.request<{ data: Group[] | GroupWithMembers[] }>(`/api/groups/all?${query}`);
     return response.data;
   }
 
-  async getTagTeam(id: string, includeMembers = false): Promise<TagTeam | TagTeamWithMembers> {
+  async getGroup(id: string, includeMembers = false): Promise<Group | GroupWithMembers> {
     const query = includeMembers ? '?includeMembers=true' : '';
-    return this.request(`/api/tag-teams/${id}${query}`);
+    return this.request(`/api/groups/${id}${query}`);
   }
 
-  async createTagTeam(data: CreateTagTeamRequest): Promise<TagTeam> {
-    return this.request('/api/tag-teams', {
+  async createGroup(data: CreateGroupRequest): Promise<Group> {
+    return this.request('/api/groups', {
       method: 'POST',
       body: JSON.stringify(data),
     });
   }
 
-  async updateTagTeam(id: string, data: UpdateTagTeamRequest): Promise<TagTeam> {
-    return this.request(`/api/tag-teams/${id}`, {
+  async updateGroup(id: string, data: UpdateGroupRequest): Promise<Group> {
+    return this.request(`/api/groups/${id}`, {
       method: 'PATCH',
       body: JSON.stringify(data),
     });
   }
 
-  async deleteTagTeam(id: string): Promise<{ message: string; id: string }> {
-    return this.request(`/api/tag-teams/${id}`, {
+  async deleteGroup(id: string): Promise<{ message: string; id: string }> {
+    return this.request(`/api/groups/${id}`, {
       method: 'DELETE',
     });
   }
 
-  async addTagTeamMember(teamId: string, data: AddTagTeamMemberRequest) {
-    return this.request(`/api/tag-teams/${teamId}/members`, {
+  async addGroupMember(groupId: string, data: AddGroupMemberRequest): Promise<GroupMember> {
+    return this.request<GroupMember>(`/api/groups/${groupId}/members`, {
       method: 'POST',
       body: JSON.stringify(data),
     });
   }
 
-  async updateTagTeamMember(teamId: string, memberId: string, data: UpdateTagTeamMemberRequest) {
-    return this.request(`/api/tag-teams/${teamId}/members/${memberId}`, {
+  async updateGroupMember(groupId: string, memberId: string, data: UpdateGroupMemberRequest) {
+    return this.request(`/api/groups/${groupId}/members/${memberId}`, {
       method: 'PATCH',
       body: JSON.stringify(data),
     });
   }
 
-  async removeTagTeamMember(teamId: string, memberId: string) {
-    return this.request(`/api/tag-teams/${teamId}/members/${memberId}`, {
+  async removeGroupMember(groupId: string, memberId: string) {
+    return this.request(`/api/groups/${groupId}/members/${memberId}`, {
       method: 'DELETE',
     });
   }
@@ -351,6 +394,13 @@ class ApiClient {
   async removeMatchParticipant(matchId: string, participantId: string) {
     return this.request(`/api/matches/${matchId}/participants/${participantId}`, {
       method: 'DELETE',
+    });
+  }
+
+  async reorderMatches(eventId: string, matchIds: string[]): Promise<{ success: boolean }> {
+    return this.request(`/api/events/${eventId}/matches/reorder`, {
+      method: 'POST',
+      body: JSON.stringify({ matchIds }),
     });
   }
 

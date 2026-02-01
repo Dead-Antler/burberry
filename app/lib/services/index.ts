@@ -7,7 +7,7 @@
 
 export { brandService } from './brand.service';
 export { wrestlerService } from './wrestler.service';
-export { tagTeamService } from './tag-team.service';
+export { groupService } from './group.service';
 export { eventService } from './event.service';
 export { matchService } from './match.service';
 export {
@@ -20,11 +20,11 @@ export {
 export type { CreateBrandInput, UpdateBrandInput, ListBrandsParams } from './brand.service';
 export type { CreateWrestlerInput, UpdateWrestlerInput, ListWrestlersParams } from './wrestler.service';
 export type {
-  CreateTagTeamInput,
-  UpdateTagTeamInput,
+  CreateGroupInput,
+  UpdateGroupInput,
   AddMemberInput,
-  ListTagTeamsParams,
-} from './tag-team.service';
+  ListGroupsParams,
+} from './group.service';
 export type { CreateEventInput, UpdateEventInput, ListEventsParams } from './event.service';
 export type {
   CreateMatchInput,

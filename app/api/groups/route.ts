@@ -6,12 +6,12 @@ import {
   parseQueryWithSchema,
   createPaginatedResponse,
 } from '@/app/lib/api-helpers';
-import { createTagTeamSchema, tagTeamQuerySchema, paginationSchema } from '@/app/lib/validation-schemas';
-import { tagTeamService } from '@/app/lib/services/tag-team.service';
+import { createGroupSchema, groupQuerySchema, paginationSchema } from '@/app/lib/validation-schemas';
+import { groupService } from '@/app/lib/services/group.service';
 
 /**
- * GET /api/tag-teams
- * List all tag teams with pagination
+ * GET /api/groups
+ * List all groups with pagination
  * Query params:
  * - brandId: filter by brand
  * - isActive: filter by active status (true/false)
@@ -20,27 +20,28 @@ import { tagTeamService } from '@/app/lib/services/tag-team.service';
  */
 export const GET = apiHandler(async (req: NextRequest) => {
   const { searchParams } = new URL(req.url);
-  const query = parseQueryWithSchema(searchParams, tagTeamQuerySchema);
+  const query = parseQueryWithSchema(searchParams, groupQuerySchema);
   const pagination = parseQueryWithSchema(searchParams, paginationSchema);
 
-  const { data, total } = await tagTeamService.list({
+  const { data, total } = await groupService.list({
     ...pagination,
     brandId: query.brandId,
     isActive: query.isActive,
     includeMembers: query.includeMembers,
+    search: query.search,
   });
 
   return apiSuccess(createPaginatedResponse(data, total, pagination));
 });
 
 /**
- * POST /api/tag-teams
- * Create a new tag team
+ * POST /api/groups
+ * Create a new group
  */
 export const POST = apiHandler(async (req: NextRequest) => {
-  const body = await parseBodyWithSchema(req, createTagTeamSchema);
+  const body = await parseBodyWithSchema(req, createGroupSchema);
 
-  const tagTeam = await tagTeamService.create(body);
+  const group = await groupService.create(body);
 
-  return apiSuccess(tagTeam, 201);
+  return apiSuccess(group, 201);
 }, { requireAdmin: true });

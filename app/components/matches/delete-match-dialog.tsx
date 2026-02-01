@@ -38,6 +38,7 @@ export function DeleteMatchDialog({
 
     try {
       await apiClient.deleteMatch(match.id)
+      setIsDeleting(false)
       onSuccess(match.id)
     } catch (err) {
       const message = err instanceof ApiClientError

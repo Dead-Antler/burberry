@@ -36,6 +36,20 @@
       "when": 1769915366901,
       "tag": "0004_fantastic_wildside",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "6",
+      "when": 1769920307160,
+      "tag": "0005_amazing_the_hood",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "6",
+      "when": 1769922522936,
+      "tag": "0006_flawless_bucky",
+      "breakpoints": true
     }
   ]
 }

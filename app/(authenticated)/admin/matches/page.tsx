@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback, useEffect, useState } from "react"
+import { useCallback, useEffect, useState, useRef } from "react"
 import { useSearchParams } from "next/navigation"
 import { Plus } from "lucide-react"
 import { SiteHeader } from "@/app/components/site-header"
@@ -47,13 +47,18 @@ export default function ManageMatchesPage() {
   const [deletingMatch, setDeletingMatch] = useState<MatchWithParticipants | null>(null)
   const [participantsMatch, setParticipantsMatch] = useState<MatchWithParticipants | null>(null)
 
-  // Fetch active events on mount (open + locked only, filtered server-side)
+  // Reorder state - debounce API calls
+  const reorderTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  // Fetch events that can be managed (upcoming, open, locked - not completed)
   useEffect(() => {
     const fetchEvents = async () => {
       setIsLoadingEvents(true)
       try {
-        const data = await apiClient.getEvents({ active: true })
-        setActiveEvents(data)
+        const allEvents = await apiClient.getEvents()
+        // Filter to events that can still be managed (not completed)
+        const manageableEvents = allEvents.filter((e) => e.status !== "completed")
+        setActiveEvents(manageableEvents)
 
         // If coming from URL, fetch that specific event (may be completed)
         if (eventIdFromUrl) {
@@ -126,7 +131,42 @@ export default function ManageMatchesPage() {
     setDeletingMatch(null)
   }
 
-  const isEventEditable = selectedEvent?.status === "open" || selectedEvent?.status === "locked"
+  const handleReorder = useCallback(
+    (reorderedMatches: MatchWithParticipants[]) => {
+      if (!selectedEvent) return
+
+      // Update local state with new matchOrder values for responsive UI
+      const updatedMatches = reorderedMatches.map((match, index) => ({
+        ...match,
+        matchOrder: index + 1,
+      }))
+      setMatches(updatedMatches)
+
+      // Debounce the API call
+      if (reorderTimeoutRef.current) {
+        clearTimeout(reorderTimeoutRef.current)
+      }
+
+      reorderTimeoutRef.current = setTimeout(async () => {
+        try {
+          const matchIds = reorderedMatches.map((m) => m.id)
+          await apiClient.reorderMatches(selectedEvent.id, matchIds)
+        } catch (err) {
+          // On error, refetch to restore correct order
+          const message =
+            err instanceof ApiClientError ? err.message : "Failed to reorder matches"
+          setError(message)
+          fetchMatches()
+        }
+      }, 500)
+    },
+    [selectedEvent, fetchMatches]
+  )
+
+  // Can add/edit/delete matches on upcoming and open events
+  const canEditMatches = selectedEvent?.status === "upcoming" || selectedEvent?.status === "open"
+  // Can still view matches on locked events (but not edit)
+  const isEventEditable = canEditMatches || selectedEvent?.status === "locked"
 
   return (
     <>
@@ -145,7 +185,7 @@ export default function ManageMatchesPage() {
               Create and manage matches for events.
             </p>
           </div>
-          {selectedEvent && isEventEditable && (
+          {selectedEvent && canEditMatches && (
             <Button onClick={() => setIsCreateDialogOpen(true)}>
               <Plus className="mr-2 h-4 w-4" />
               Add Match
@@ -157,7 +197,7 @@ export default function ManageMatchesPage() {
         <Card className="py-0">
           <CardContent className="py-4">
             <div className="space-y-2">
-              <Label htmlFor="event-select">Select an open or locked event</Label>
+              <Label htmlFor="event-select">Select an event</Label>
               <Select
                 value={selectedEvent?.id ?? ""}
                 onValueChange={handleEventChange}
@@ -220,6 +260,8 @@ export default function ManageMatchesPage() {
             onDelete={setDeletingMatch}
             onManageParticipants={setParticipantsMatch}
             onRetry={fetchMatches}
+            onReorder={handleReorder}
+            isReorderDisabled={!canEditMatches}
           />
         ) : (
           <Card>
@@ -235,6 +277,7 @@ export default function ManageMatchesPage() {
           open={isCreateDialogOpen}
           onOpenChange={setIsCreateDialogOpen}
           eventId={selectedEvent?.id ?? ""}
+          eventBrandId={selectedEvent?.brandId}
           nextOrder={matches.length + 1}
           onSuccess={handleCreateSuccess}
         />

@@ -38,6 +38,7 @@ export function DeleteWrestlerDialog({
 
     try {
       await apiClient.deleteWrestler(wrestler.id)
+      setIsDeleting(false)
       onSuccess(wrestler.id)
     } catch (err) {
       const message = err instanceof ApiClientError

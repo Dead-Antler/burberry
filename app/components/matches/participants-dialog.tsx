@@ -1,8 +1,9 @@
 "use client"
 
 import { useCallback, useEffect, useMemo, useState } from "react"
-import { Crown, Loader2, Plus, Trash2 } from "lucide-react"
+import { ArrowRightLeft, Crown, Loader2, MoreHorizontal, Plus, Trash2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import {
   Dialog,
   DialogContent,
@@ -10,46 +11,42 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
-import { Checkbox } from "@/components/ui/checkbox"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
 import { FuzzyCombobox, type FuzzyComboboxOption } from "@/components/ui/fuzzy-combobox"
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table"
 import { Badge } from "@/components/ui/badge"
 import { Skeleton } from "@/components/ui/skeleton"
 import { apiClient, ApiClientError } from "@/app/lib/api-client"
-import { getParticipantName } from "@/app/lib/participant-utils"
+import { getParticipantName, groupParticipantsBySide } from "@/app/lib/participant-utils"
+import { GroupBadge } from "@/app/components/ui/group-badge"
 import type {
   MatchWithParticipants,
   MatchParticipantWithData,
-  Wrestler,
-  TagTeam,
+  WrestlerWithGroups,
+  Brand,
 } from "@/app/lib/api-types"
 
 interface ParticipantsDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
   match: MatchWithParticipants | null
-  /** Brand ID of the event - used to show warnings for cross-brand participants */
   eventBrandId?: string
   onUpdate: () => void
 }
 
-type ParticipantType = "wrestler" | "tag_team"
+type ParticipantType = "wrestler" | "group"
+
+interface ParticipantOption extends FuzzyComboboxOption {
+  type: ParticipantType
+}
 
 export function ParticipantsDialog({
   open,
@@ -58,22 +55,16 @@ export function ParticipantsDialog({
   eventBrandId,
   onUpdate,
 }: ParticipantsDialogProps) {
-  const [wrestlers, setWrestlers] = useState<Wrestler[]>([])
-  const [tagTeams, setTagTeams] = useState<TagTeam[]>([])
+  const [wrestlers, setWrestlers] = useState<WrestlerWithGroups[]>([])
+  const [brands, setBrands] = useState<Brand[]>([])
   const [participants, setParticipants] = useState<MatchParticipantWithData[]>([])
   const [isLoadingOptions, setIsLoadingOptions] = useState(true)
-  const [isAdding, setIsAdding] = useState(false)
   const [removingId, setRemovingId] = useState<string | null>(null)
-  const [error, setError] = useState<string | null>(null)
-
-  // Add form state
-  const [participantType, setParticipantType] = useState<ParticipantType>("wrestler")
-  const [selectedParticipantId, setSelectedParticipantId] = useState("")
-  const [side, setSide] = useState<string>("")
-  const [isChampion, setIsChampion] = useState(false)
   const [togglingChampionId, setTogglingChampionId] = useState<string | null>(null)
+  const [movingId, setMovingId] = useState<string | null>(null)
+  const [error, setError] = useState<string | null>(null)
+  const [explicitSides, setExplicitSides] = useState<number[]>([])
 
-  // Fetch current participants for this match
   const fetchParticipants = useCallback(async () => {
     if (!match) return
     try {
@@ -86,18 +77,17 @@ export function ParticipantsDialog({
     }
   }, [match])
 
-  // Fetch wrestlers, tag teams, and current participants when dialog opens
   useEffect(() => {
     if (open && match) {
       const fetchOptions = async () => {
         setIsLoadingOptions(true)
         try {
-          const [wrestlersData, tagTeamsData] = await Promise.all([
-            apiClient.getWrestlers({ isActive: true }),
-            apiClient.getTagTeams({ isActive: true }),
+          const [wrestlersData, brandsData] = await Promise.all([
+            apiClient.getAllWrestlers({ isActive: true, includeGroups: true }),
+            apiClient.getBrands(),
           ])
-          setWrestlers(wrestlersData)
-          setTagTeams(tagTeamsData as TagTeam[])
+          setWrestlers(wrestlersData as WrestlerWithGroups[])
+          setBrands(brandsData)
         } catch (err) {
           console.error("Failed to load participants:", err)
         } finally {
@@ -105,36 +95,109 @@ export function ParticipantsDialog({
         }
       }
       fetchOptions()
-      // Initialize participants from match prop, then fetch fresh data
       setParticipants(match.participants || [])
       fetchParticipants()
-      // Reset form
-      setParticipantType("wrestler")
-      setSelectedParticipantId("")
-      setSide("")
-      setIsChampion(false)
+      setExplicitSides([])
       setError(null)
     }
   }, [open, match, fetchParticipants])
 
-  const handleAdd = async () => {
-    if (!match || !selectedParticipantId) return
+  // Group participants by side and compute side numbers
+  const { participantsBySide, sideNumbers, maxSide } = useMemo(() => {
+    const bySide = groupParticipantsBySide(participants)
 
-    setIsAdding(true)
+    // Get sides from participants
+    const fromParticipants = new Set(
+      participants.map((p) => p.side).filter((s): s is number => s !== null)
+    )
+
+    // Merge with explicit sides
+    const merged = new Set([...fromParticipants, ...explicitSides])
+
+    // Ensure at least sides 1 and 2
+    if (merged.size === 0) {
+      merged.add(1)
+      merged.add(2)
+    } else if (merged.size === 1) {
+      merged.add(merged.has(1) ? 2 : 1)
+    }
+
+    const sides = Array.from(merged).sort((a, b) => a - b)
+    const max = Math.max(...sides, 0)
+
+    // Ensure all sides have entries in the map
+    for (const side of sides) {
+      if (!bySide.has(side)) {
+        bySide.set(side, [])
+      }
+    }
+
+    return {
+      participantsBySide: bySide,
+      sideNumbers: sides,
+      maxSide: max,
+    }
+  }, [participants, explicitSides])
+
+  // Create brand lookup map
+  const brandMap = useMemo(() => {
+    const map = new Map<string, string>()
+    for (const brand of brands) {
+      map.set(brand.id, brand.name)
+    }
+    return map
+  }, [brands])
+
+  // Create wrestler groups lookup map
+  const wrestlerGroupsMap = useMemo(() => {
+    const map = new Map<string, Array<{ id: string; name: string }>>()
+    for (const wrestler of wrestlers) {
+      map.set(wrestler.id, wrestler.groups)
+    }
+    return map
+  }, [wrestlers])
+
+  // All available options with type info and brand groups
+  // Now only shows wrestlers (with their group memberships as searchable terms)
+  const allOptions = useMemo(() => {
+    const existingIds = new Set(participants.map((p) => p.participantId))
+
+    const wrestlerOpts: ParticipantOption[] = wrestlers
+      .filter((w) => !existingIds.has(w.id))
+      .map((w) => ({
+        value: w.id,
+        label: w.currentName,
+        type: "wrestler" as const,
+        group: brandMap.get(w.brandId),
+        warning: eventBrandId ? w.brandId !== eventBrandId : false,
+        warningTooltip: "Different brand",
+        // Add group names as searchable terms so typing "don callis" shows DCF members
+        searchTerms: w.groups.map((g) => g.name),
+        // Show group memberships below the wrestler name
+        secondaryLabel: w.groups.length > 0
+          ? w.groups.map((g) => g.name).join(", ")
+          : undefined,
+      }))
+
+    return wrestlerOpts
+  }, [wrestlers, participants, eventBrandId, brandMap])
+
+  const handleAddToSide = async (
+    sideNumber: number | null,
+    participantType: ParticipantType,
+    participantId: string,
+    isChampion: boolean
+  ) => {
+    if (!match) return
+
     setError(null)
-
     try {
       await apiClient.addMatchParticipant(match.id, {
         participantType,
-        participantId: selectedParticipantId,
-        side: side ? parseInt(side, 10) : null,
+        participantId,
+        side: sideNumber,
         isChampion,
       })
-      // Reset form
-      setSelectedParticipantId("")
-      setSide("")
-      setIsChampion(false)
-      // Refetch participants to update the list
       await fetchParticipants()
       onUpdate()
     } catch (err) {
@@ -142,8 +205,6 @@ export function ParticipantsDialog({
         ? err.message
         : "Failed to add participant"
       setError(message)
-    } finally {
-      setIsAdding(false)
     }
   }
 
@@ -155,7 +216,6 @@ export function ParticipantsDialog({
 
     try {
       await apiClient.removeMatchParticipant(match.id, participantId)
-      // Refetch participants to update the list
       await fetchParticipants()
       onUpdate()
     } catch (err) {
@@ -178,58 +238,63 @@ export function ParticipantsDialog({
       await apiClient.updateMatchParticipant(match.id, participant.id, {
         isChampion: !participant.isChampion,
       })
-      // Refetch participants to update the list
-      await fetchParticipants()
+      // Optimistic update
+      setParticipants((prev) =>
+        prev.map((p) =>
+          p.id === participant.id ? { ...p, isChampion: !p.isChampion } : p
+        )
+      )
       onUpdate()
     } catch (err) {
       const message = err instanceof ApiClientError
         ? err.message
         : "Failed to update champion status"
       setError(message)
+      await fetchParticipants()
     } finally {
       setTogglingChampionId(null)
     }
   }
 
-  // Memoize available options filtering and conversion to FuzzyCombobox format
-  const { availableOptions, comboboxOptions } = useMemo(() => {
-    const participantOptions = participantType === "wrestler" ? wrestlers : tagTeams
+  const handleMoveParticipant = async (
+    participantId: string,
+    newSide: number | null
+  ) => {
+    if (!match) return
 
-    // Filter out already added participants
-    const existingParticipantIds = new Set(
-      participants
-        .filter((p) => p.participantType === participantType)
-        .map((p) => p.participantId)
-    )
-    const available = participantOptions.filter(
-      (p) => !existingParticipantIds.has(p.id)
-    )
+    setMovingId(participantId)
+    setError(null)
 
-    // Convert to FuzzyCombobox format with cross-brand warnings
-    const combobox: FuzzyComboboxOption[] = available.map((option) => {
-      const isCrossBrand = Boolean(eventBrandId && option.brandId !== eventBrandId)
-      return {
-        value: option.id,
-        label: "currentName" in option ? option.currentName : option.name,
-        warning: isCrossBrand,
-        warningTooltip: isCrossBrand ? "Different brand" : undefined,
-      }
-    })
+    try {
+      await apiClient.updateMatchParticipant(match.id, participantId, {
+        side: newSide,
+      })
+      // Optimistic update
+      setParticipants((prev) =>
+        prev.map((p) =>
+          p.id === participantId ? { ...p, side: newSide } : p
+        )
+      )
+      onUpdate()
+    } catch (err) {
+      const message = err instanceof ApiClientError
+        ? err.message
+        : "Failed to move participant"
+      setError(message)
+      await fetchParticipants()
+    } finally {
+      setMovingId(null)
+    }
+  }
 
-    return { availableOptions: available, comboboxOptions: combobox }
-  }, [participantType, wrestlers, tagTeams, participants, eventBrandId])
-
-  // Sort participants by side for display
-  const sortedParticipants = [...participants].sort((a, b) => {
-    if (a.side === null && b.side === null) return 0
-    if (a.side === null) return 1
-    if (b.side === null) return -1
-    return a.side - b.side
-  })
+  const handleAddSide = () => {
+    const nextSide = maxSide + 1
+    setExplicitSides((prev) => [...prev, nextSide])
+  }
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[600px]">
+      <DialogContent className="w-full h-full max-w-none max-h-none sm:w-[80vw] sm:h-[80vh] sm:max-w-[80vw] sm:max-h-[80vh] flex flex-col">
         <DialogHeader>
           <DialogTitle>Manage Participants</DialogTitle>
           <DialogDescription>
@@ -237,209 +302,302 @@ export function ParticipantsDialog({
           </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-6">
-          {/* Current Participants */}
-          <div className="space-y-2">
-            <Label>Current Participants</Label>
-            {sortedParticipants.length === 0 ? (
-              <p className="text-sm text-muted-foreground py-4 text-center">
-                No participants added yet.
-              </p>
-            ) : (
-              <div className="border rounded-md">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Name</TableHead>
-                      <TableHead>Type</TableHead>
-                      <TableHead>Side</TableHead>
-                      <TableHead className="w-[70px] text-center">
-                        <Crown className="h-4 w-4 mx-auto" />
-                      </TableHead>
-                      <TableHead className="w-[70px]">
-                        <span className="sr-only">Remove</span>
-                      </TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {sortedParticipants.map((participant) => (
-                      <TableRow key={participant.id}>
-                        <TableCell className="font-medium">
-                          <span className="flex items-center gap-1.5">
-                            {participant.isChampion && (
-                              <Crown className="h-4 w-4 text-yellow-500 shrink-0" />
-                            )}
-                            {getParticipantName(participant)}
-                          </span>
-                        </TableCell>
-                        <TableCell>
-                          <Badge variant="outline" className="capitalize">
-                            {participant.participantType.replace("_", " ")}
-                          </Badge>
-                        </TableCell>
-                        <TableCell>
-                          {participant.side !== null ? (
-                            <Badge variant="secondary">Side {participant.side}</Badge>
-                          ) : (
-                            <span className="text-muted-foreground">—</span>
-                          )}
-                        </TableCell>
-                        <TableCell className="text-center">
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => handleToggleChampion(participant)}
-                            disabled={togglingChampionId === participant.id}
-                            aria-label={
-                              togglingChampionId === participant.id
-                                ? "Updating..."
-                                : participant.isChampion
-                                  ? "Remove champion status"
-                                  : "Mark as champion"
-                            }
-                            className="h-8 w-8"
-                          >
-                            {togglingChampionId === participant.id ? (
-                              <Loader2 className="h-4 w-4 animate-spin" />
-                            ) : (
-                              <Crown
-                                className={`h-4 w-4 ${
-                                  participant.isChampion
-                                    ? "text-yellow-500 fill-yellow-500"
-                                    : "text-muted-foreground"
-                                }`}
-                              />
-                            )}
-                          </Button>
-                        </TableCell>
-                        <TableCell>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => handleRemove(participant.id)}
-                            disabled={removingId === participant.id}
-                            aria-label={removingId === participant.id ? "Removing..." : `Remove ${getParticipantName(participant)}`}
-                          >
-                            {removingId === participant.id ? (
-                              <Loader2 className="h-4 w-4 text-destructive animate-spin" />
-                            ) : (
-                              <Trash2 className="h-4 w-4 text-destructive" />
-                            )}
-                          </Button>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </div>
-            )}
-          </div>
-
-          {/* Add Participant Form */}
-          <div className="space-y-4 border-t pt-4">
-            <Label>Add Participant</Label>
-            {isLoadingOptions ? (
-              <div className="space-y-2">
-                <Skeleton className="h-10 w-full" />
-                <Skeleton className="h-10 w-full" />
-              </div>
-            ) : (
-              <div className="grid gap-4 sm:grid-cols-[1fr_1fr_auto_auto_auto]">
-                <div className="space-y-2">
-                  <Label htmlFor="participant-type" className="text-xs">
-                    Type
-                  </Label>
-                  <Select
-                    value={participantType}
-                    onValueChange={(v) => {
-                      setParticipantType(v as ParticipantType)
-                      setSelectedParticipantId("")
-                    }}
-                  >
-                    <SelectTrigger id="participant-type">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="wrestler">Wrestler</SelectItem>
-                      <SelectItem value="tag_team">Tag Team</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="participant-select" className="text-xs">
-                    {participantType === "wrestler" ? "Wrestler" : "Tag Team"}
-                  </Label>
-                  <FuzzyCombobox
-                    options={comboboxOptions}
-                    value={selectedParticipantId}
-                    onValueChange={setSelectedParticipantId}
-                    placeholder="Select..."
-                    searchPlaceholder={`Search ${participantType === "wrestler" ? "wrestlers" : "tag teams"}...`}
-                    emptyMessage={`No ${participantType === "wrestler" ? "wrestlers" : "tag teams"} found.`}
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="side" className="text-xs">
-                    Side
-                  </Label>
-                  <Input
-                    id="side"
-                    type="number"
-                    min={1}
-                    placeholder="—"
-                    value={side}
-                    onChange={(e) => setSide(e.target.value)}
-                    className="w-20"
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="is-champion" className="text-xs">
-                    Champ
-                  </Label>
-                  <div className="flex h-10 items-center justify-center">
-                    <Checkbox
-                      id="is-champion"
-                      checked={isChampion}
-                      onCheckedChange={(checked) => setIsChampion(checked === true)}
-                      aria-label="Is champion"
-                    />
-                  </div>
-                </div>
-
-                <div className="flex items-end">
-                  <Button
-                    onClick={handleAdd}
-                    disabled={!selectedParticipantId || isAdding}
-                    size="icon"
-                    aria-label={isAdding ? "Adding..." : "Add participant"}
-                  >
-                    {isAdding ? (
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                    ) : (
-                      <Plus className="h-4 w-4" />
-                    )}
-                  </Button>
-                </div>
-              </div>
-            )}
-
-            {availableOptions.length === 0 && !isLoadingOptions && (
-              <p className="text-sm text-muted-foreground">
-                No available {participantType === "wrestler" ? "wrestlers" : "tag teams"} to add.
-              </p>
-            )}
-          </div>
-
+        <div className="flex-1 overflow-y-auto space-y-4 pr-2">
           {error && (
             <p className="text-sm text-destructive" role="alert">
               {error}
             </p>
           )}
+
+          {isLoadingOptions ? (
+            <div className="flex flex-col sm:flex-row sm:flex-wrap gap-3">
+              <Skeleton className="h-[200px] w-full sm:w-[calc(25%-0.75rem)]" />
+              <Skeleton className="h-[200px] w-full sm:w-[calc(25%-0.75rem)]" />
+            </div>
+          ) : (
+            <>
+              {/* Side columns - stack on mobile, flex-wrap on desktop (max 4 per row) */}
+              <div className="flex flex-col sm:flex-row sm:flex-wrap gap-3">
+                {sideNumbers.map((sideNum) => (
+                  <SideColumn
+                    key={sideNum}
+                    sideNumber={sideNum}
+                    participants={participantsBySide.get(sideNum) ?? []}
+                    allOptions={allOptions}
+                    onAddParticipant={handleAddToSide}
+                    onRemoveParticipant={handleRemove}
+                    onToggleChampion={handleToggleChampion}
+                    onMoveParticipant={handleMoveParticipant}
+                    allSides={sideNumbers}
+                    removingId={removingId}
+                    togglingChampionId={togglingChampionId}
+                    movingId={movingId}
+                    wrestlerGroupsMap={wrestlerGroupsMap}
+                  />
+                ))}
+
+                {/* Add Side button */}
+                <Card className="w-full sm:flex-1 sm:min-w-50 border-dashed">
+                  <CardContent className="flex flex-col items-center justify-center h-full py-6">
+                    <Button
+                      variant="ghost"
+                      className="flex flex-col gap-2 h-auto py-3"
+                      onClick={handleAddSide}
+                    >
+                      <Plus className="h-5 w-5" />
+                      <span className="text-sm">Add Side {maxSide + 1}</span>
+                    </Button>
+                  </CardContent>
+                </Card>
+              </div>
+            </>
+          )}
         </div>
       </DialogContent>
     </Dialog>
+  )
+}
+
+// ============================================================================
+// SideColumn Component
+// ============================================================================
+
+interface SideColumnProps {
+  sideNumber: number
+  participants: MatchParticipantWithData[]
+  allOptions: ParticipantOption[]
+  onAddParticipant: (
+    side: number | null,
+    type: ParticipantType,
+    id: string,
+    isChampion: boolean
+  ) => Promise<void>
+  onRemoveParticipant: (id: string) => Promise<void>
+  onToggleChampion: (p: MatchParticipantWithData) => Promise<void>
+  onMoveParticipant: (id: string, newSide: number | null) => Promise<void>
+  allSides: number[]
+  removingId: string | null
+  togglingChampionId: string | null
+  movingId: string | null
+  wrestlerGroupsMap: Map<string, Array<{ id: string; name: string }>>
+}
+
+function SideColumn({
+  sideNumber,
+  participants,
+  allOptions,
+  onAddParticipant,
+  onRemoveParticipant,
+  onToggleChampion,
+  onMoveParticipant,
+  allSides,
+  removingId,
+  togglingChampionId,
+  movingId,
+  wrestlerGroupsMap,
+}: SideColumnProps) {
+  const [selectedId, setSelectedId] = useState("")
+  const [isAdding, setIsAdding] = useState(false)
+
+  const handleAdd = async () => {
+    if (!selectedId) return
+    const selected = allOptions.find((o) => o.value === selectedId)
+    if (!selected) return
+
+    setIsAdding(true)
+    try {
+      await onAddParticipant(sideNumber, selected.type, selectedId, false)
+      setSelectedId("")
+    } finally {
+      setIsAdding(false)
+    }
+  }
+
+  return (
+    <Card className="w-full sm:w-[calc(25%-0.5625rem)] sm:min-w-50">
+      <CardHeader className="py-3 px-4">
+        <CardTitle className="text-sm font-medium flex items-center justify-between">
+          <span>Side {sideNumber}</span>
+          <Badge variant="secondary" className="text-xs">
+            {participants.length}
+          </Badge>
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="px-4 pb-4 space-y-3">
+        {/* Participant list */}
+        <div className="space-y-2 min-h-[60px]">
+          {participants.length === 0 ? (
+            <p className="text-xs text-muted-foreground text-center py-3">
+              No participants
+            </p>
+          ) : (
+            participants.map((participant) => (
+              <ParticipantCard
+                key={participant.id}
+                participant={participant}
+                onRemove={() => onRemoveParticipant(participant.id)}
+                onToggleChampion={() => onToggleChampion(participant)}
+                onMove={(newSide) => onMoveParticipant(participant.id, newSide)}
+                currentSide={sideNumber}
+                allSides={allSides}
+                isRemoving={removingId === participant.id}
+                isTogglingChampion={togglingChampionId === participant.id}
+                isMoving={movingId === participant.id}
+                groups={
+                  participant.participantType === "wrestler"
+                    ? wrestlerGroupsMap.get(participant.participantId) || []
+                    : []
+                }
+              />
+            ))
+          )}
+        </div>
+
+        {/* Add participant form */}
+        <div className="border-t pt-3 flex gap-2 items-center">
+          <FuzzyCombobox
+            options={allOptions}
+            value={selectedId}
+            onValueChange={setSelectedId}
+            placeholder="Add participant..."
+            searchPlaceholder="Search wrestlers or groups..."
+            emptyMessage="None available"
+            className="flex-1 min-w-0"
+          />
+          <Button
+            size="icon"
+            className="h-9 w-9 shrink-0"
+            onClick={handleAdd}
+            disabled={!selectedId || isAdding}
+          >
+            {isAdding ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <Plus className="h-4 w-4" />
+            )}
+          </Button>
+        </div>
+      </CardContent>
+    </Card>
+  )
+}
+
+// ============================================================================
+// ParticipantCard Component
+// ============================================================================
+
+interface ParticipantCardProps {
+  participant: MatchParticipantWithData
+  onRemove: () => void
+  onToggleChampion: () => void
+  onMove: (newSide: number | null) => void
+  currentSide: number | null
+  allSides: number[]
+  isRemoving: boolean
+  isTogglingChampion: boolean
+  isMoving: boolean
+  groups: Array<{ id: string; name: string }>
+}
+
+function ParticipantCard({
+  participant,
+  onRemove,
+  onToggleChampion,
+  onMove,
+  currentSide,
+  allSides,
+  isRemoving,
+  isTogglingChampion,
+  isMoving,
+  groups,
+}: ParticipantCardProps) {
+  const name = getParticipantName(participant)
+  const isLoading = isRemoving || isTogglingChampion || isMoving
+
+  return (
+    <div className="flex items-center gap-1.5 p-2 rounded-md border bg-card text-card-foreground">
+      {/* Champion toggle */}
+      <Button
+        variant="ghost"
+        size="icon"
+        className="h-6 w-6 shrink-0"
+        onClick={onToggleChampion}
+        disabled={isLoading}
+        aria-label={participant.isChampion ? "Remove champion" : "Set champion"}
+      >
+        {isTogglingChampion ? (
+          <Loader2 className="h-3 w-3 animate-spin" />
+        ) : (
+          <Crown
+            className={
+              participant.isChampion
+                ? "h-3 w-3 text-yellow-500 fill-yellow-500"
+                : "h-3 w-3 text-muted-foreground"
+            }
+          />
+        )}
+      </Button>
+
+      {/* Name and groups */}
+      <div className="flex-1 min-w-0">
+        <p className="text-sm font-medium truncate">{name}</p>
+        {groups.length > 0 && (
+          <div className="flex flex-wrap gap-0.5 mt-0.5">
+            {groups.map((g) => (
+              <GroupBadge key={g.id} groupName={g.name} size="sm" />
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Actions dropdown */}
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-6 w-6 shrink-0"
+            disabled={isLoading}
+          >
+            {isMoving ? (
+              <Loader2 className="h-3 w-3 animate-spin" />
+            ) : (
+              <MoreHorizontal className="h-3 w-3" />
+            )}
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end">
+          <DropdownMenuSub>
+            <DropdownMenuSubTrigger>
+              <ArrowRightLeft className="mr-2 h-4 w-4" />
+              Move to...
+            </DropdownMenuSubTrigger>
+            <DropdownMenuSubContent>
+              {/* Move to other sides */}
+              {allSides
+                .filter((s) => s !== currentSide)
+                .map((s) => (
+                  <DropdownMenuItem key={s} onClick={() => onMove(s)}>
+                    Side {s}
+                  </DropdownMenuItem>
+                ))}
+            </DropdownMenuSubContent>
+          </DropdownMenuSub>
+          <DropdownMenuSeparator />
+          <DropdownMenuItem
+            onClick={onRemove}
+            disabled={isRemoving}
+            className="text-destructive focus:text-destructive"
+          >
+            {isRemoving ? (
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+            ) : (
+              <Trash2 className="mr-2 h-4 w-4" />
+            )}
+            Remove
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+    </div>
   )
 }

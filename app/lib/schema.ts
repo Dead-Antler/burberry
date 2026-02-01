@@ -47,7 +47,7 @@ export const wrestlerNames = sqliteTable('wrestlerNames', {
   wrestlerIdx: index('wrestlerNames_wrestlerId_idx').on(table.wrestlerId),
 }));
 
-export const tagTeams = sqliteTable('tagTeams', {
+export const groups = sqliteTable('groups', {
   id: text('id').primaryKey(),
   name: text('name').notNull(),
   brandId: text('brandId').notNull().references(() => brands.id),
@@ -55,19 +55,19 @@ export const tagTeams = sqliteTable('tagTeams', {
   createdAt: integer('createdAt', { mode: 'timestamp_ms' }).$defaultFn(() => new Date()),
   updatedAt: integer('updatedAt', { mode: 'timestamp_ms' }).$defaultFn(() => new Date()),
 }, (table) => ({
-  brandIdx: index('tagTeams_brandId_idx').on(table.brandId),
+  brandIdx: index('groups_brandId_idx').on(table.brandId),
 }));
 
-export const tagTeamMembers = sqliteTable('tagTeamMembers', {
+export const groupMembers = sqliteTable('groupMembers', {
   id: text('id').primaryKey(),
-  tagTeamId: text('tagTeamId').notNull().references(() => tagTeams.id),
+  groupId: text('groupId').notNull().references(() => groups.id),
   wrestlerId: text('wrestlerId').notNull().references(() => wrestlers.id),
   joinedAt: integer('joinedAt', { mode: 'timestamp_ms' }).notNull(),
   leftAt: integer('leftAt', { mode: 'timestamp_ms' }),
   createdAt: integer('createdAt', { mode: 'timestamp_ms' }).$defaultFn(() => new Date()),
 }, (table) => ({
-  tagTeamIdx: index('tagTeamMembers_tagTeamId_idx').on(table.tagTeamId),
-  wrestlerIdx: index('tagTeamMembers_wrestlerId_idx').on(table.wrestlerId),
+  groupIdx: index('groupMembers_groupId_idx').on(table.groupId),
+  wrestlerIdx: index('groupMembers_wrestlerId_idx').on(table.wrestlerId),
 }));
 
 // ============================================================================
@@ -93,6 +93,7 @@ export const matches = sqliteTable('matches', {
   eventId: text('eventId').notNull().references(() => events.id),
   matchType: text('matchType').notNull(),
   matchOrder: integer('matchOrder').notNull(),
+  unknownParticipants: integer('unknownParticipants', { mode: 'boolean' }).notNull().default(false),
   outcome: text('outcome'),
   winningSide: integer('winningSide'),
   winnerParticipantId: text('winnerParticipantId'),

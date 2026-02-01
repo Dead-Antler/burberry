@@ -38,6 +38,7 @@ export function DeleteBrandDialog({
 
     try {
       await apiClient.deleteBrand(brand.id)
+      setIsDeleting(false)
       onSuccess(brand.id)
     } catch (err) {
       const message = err instanceof ApiClientError

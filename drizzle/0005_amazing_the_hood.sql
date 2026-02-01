@@ -1,0 +1,1 @@
+ALTER TABLE `matches` ADD `unknownParticipants` integer DEFAULT false NOT NULL;

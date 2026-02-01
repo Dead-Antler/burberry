@@ -13,9 +13,9 @@ export const timestampSchema = z
   ])
   .transform((val) => (typeof val === 'string' ? new Date(val) : val));
 
-export const eventStatusSchema = z.enum(['open', 'locked', 'completed']);
+export const eventStatusSchema = z.enum(['upcoming', 'open', 'locked', 'completed']);
 export const matchOutcomeSchema = z.enum(['winner', 'draw', 'no_contest']);
-export const participantTypeSchema = z.enum(['wrestler', 'tag_team']);
+export const participantTypeSchema = z.enum(['wrestler', 'group']);
 export const predictionTypeSchema = z.enum(['time', 'count', 'wrestler', 'boolean', 'text']);
 
 // ============================================================================
@@ -55,37 +55,40 @@ export const updateWrestlerSchema = z.object({
 export const wrestlerQuerySchema = z.object({
   brandId: z.string().optional(),
   isActive: z.enum(['true', 'false']).transform((v) => v === 'true').optional(),
+  includeGroups: z.enum(['true', 'false']).transform((v) => v === 'true').optional(),
+  search: z.string().max(100).transform((s) => sanitizeText(s, 100)).optional(),
 });
 
 // ============================================================================
-// Tag Team Schemas
+// Group Schemas
 // ============================================================================
 
-export const createTagTeamSchema = z.object({
-  name: z.string().min(1, 'Tag team name is required').max(100).transform((s) => sanitizeText(s)),
+export const createGroupSchema = z.object({
+  name: z.string().min(1, 'Group name is required').max(100).transform((s) => sanitizeText(s)),
   brandId: z.string().min(1, 'Brand ID is required'),
   isActive: z.boolean().optional(),
   memberIds: z.array(z.string().min(1)).optional(),
 });
 
-export const updateTagTeamSchema = z.object({
+export const updateGroupSchema = z.object({
   name: z.string().min(1).max(100).transform((s) => sanitizeText(s)).optional(),
   brandId: z.string().min(1).optional(),
   isActive: z.boolean().optional(),
 });
 
-export const tagTeamQuerySchema = z.object({
+export const groupQuerySchema = z.object({
   brandId: z.string().optional(),
   isActive: z.enum(['true', 'false']).transform((v) => v === 'true').optional(),
   includeMembers: z.enum(['true', 'false']).transform((v) => v === 'true').optional(),
+  search: z.string().max(100).transform((s) => sanitizeText(s, 100)).optional(),
 });
 
-export const addTagTeamMemberSchema = z.object({
+export const addGroupMemberSchema = z.object({
   wrestlerId: z.string().min(1, 'Wrestler ID is required'),
   joinedAt: timestampSchema.optional(),
 });
 
-export const updateTagTeamMemberSchema = z.object({
+export const updateGroupMemberSchema = z.object({
   leftAt: timestampSchema.nullable().optional(),
 });
 
@@ -143,9 +146,14 @@ export const createMatchSchema = z.object({
 export const updateMatchSchema = z.object({
   matchType: z.string().min(1).max(100).optional(),
   matchOrder: z.number().int().positive().optional(),
+  unknownParticipants: z.boolean().optional(),
   outcome: matchOutcomeSchema.nullable().optional(),
   winningSide: z.number().int().positive().nullable().optional(),
   winnerParticipantId: z.string().min(1).nullable().optional(),
+});
+
+export const reorderMatchesSchema = z.object({
+  matchIds: z.array(z.string().min(1)).min(1, 'At least one match ID is required'),
 });
 
 export const addMatchParticipantSchema = z.object({

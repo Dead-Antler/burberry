@@ -62,8 +62,8 @@ export const NAV_ITEMS: NavItem[] = [
     adminOnly: true,
   },
   {
-    title: 'Tag Teams',
-    url: '/tag-teams',
+    title: 'Groups',
+    url: '/groups',
     icon: Users,
     adminOnly: true,
   },
