@@ -4,7 +4,7 @@ A Next.js 16 application with secure authentication and a comprehensive wrestlin
 
 ## Features
 
-- 🔐 **Secure Authentication** - JWT-based sessions with bcrypt password hashing
+- 🔐 **Secure Authentication** - Database-backed sessions with Scrypt password hashing
 - 👥 **Role-Based Access Control** - Admin and normal user permissions
 - 🎯 **Match Predictions** - Predict winners for any match type (singles, tag, multi-team, battle royal)
 - 🎲 **Custom Predictions** - Create custom prediction questions (time, count, wrestler, boolean, text)
@@ -17,8 +17,8 @@ A Next.js 16 application with secure authentication and a comprehensive wrestlin
 
 - **Framework**: Next.js 16.1.6 with App Router
 - **Runtime**: Bun
-- **Database**: SQLite with Drizzle ORM (16 tables)
-- **Authentication**: Auth.js (NextAuth v5)
+- **Database**: SQLite with Drizzle ORM
+- **Authentication**: Better Auth v1.4 (credentials, database sessions)
 - **UI**: shadcn/ui + Tailwind CSS 4
 - **Language**: TypeScript
 
@@ -34,11 +34,7 @@ bun db:migrate
 # Seed initial data (brands, prediction templates)
 bunx tsx scripts/seed-wrestling-data.ts
 
-# Create your first admin user
-bun db:create-user
-# Answer 'y' to "Is Admin?"
-
-# Start development server
+# Start development server (creates admin user automatically on first run)
 bun dev
 ```
 
@@ -94,24 +90,17 @@ All business logic is encapsulated in the RESTful API:
 - **~70 total endpoints**
 - **28 admin-only endpoints** (marked with `[ADMIN ONLY]` in docs)
 - **Type-safe** with TypeScript throughout
-- **Rate limited** (100 req/min default)
 
 See [docs/API.md](docs/API.md) for complete reference.
 
 ## Common Tasks
 
-### Create Admin User
-```bash
-bun db:create-user
-# Email: admin@example.com
-# Password: [your-password]
-# Name: Admin User
-# Is Admin? y
-```
+### Initial Admin User
+On first startup with an empty database, an admin user is created automatically if `ADMIN_EMAIL` is set in `.env`. The password is either taken from `ADMIN_PASSWORD` or randomly generated and printed to the console.
 
 ### Promote Existing User to Admin
 ```bash
-sqlite3 data/database.db "UPDATE users SET isAdmin = 1 WHERE email = 'user@example.com';"
+sqlite3 data/database.db "UPDATE users SET role = 'admin' WHERE email = 'user@example.com';"
 ```
 
 ### View Database
@@ -161,13 +150,13 @@ POST /api/events
 
 ## Security Features
 
-- ✅ bcrypt password hashing (10 rounds)
-- ✅ JWT sessions with HTTP-only cookies
-- ✅ Rate limiting (5 login attempts/15min, 100 API req/min)
-- ✅ Server-side session validation
+- ✅ Scrypt password hashing (Better Auth)
+- ✅ Database-backed sessions with HTTP-only cookies
+- ✅ Rate limiting on auth endpoints (5 login attempts/15min)
+- ✅ Server-side session validation (verified against database)
 - ✅ Role-based access control
 - ✅ SQL injection protection (Drizzle ORM)
-- ✅ CSRF protection (Auth.js)
+- ✅ CSRF protection (Better Auth)
 
 ## Database Schema
 
@@ -192,7 +181,7 @@ Private use only.
 
 ---
 
-**Version**: 1.1
-**Last Updated**: 2026-01-31
+**Version**: 1.2
+**Last Updated**: 2026-02-03
 **Next.js**: 16.1.6
 **API Endpoints**: ~70 (28 admin-only)

@@ -21,9 +21,6 @@ export const GET = apiHandler(
     });
 
     return apiSuccess(predictions);
-  },
-  {
-    rateLimit: { limit: 60, windowMs: 60 * 1000, prefix: 'predictions:custom:read' },
   }
 );
 
@@ -47,8 +44,5 @@ export const POST = apiHandler(
     const { prediction, isNew } = await customPredictionService.createOrUpdate(session.user.id, body);
 
     return apiSuccess(prediction, isNew ? 201 : 200);
-  },
-  {
-    rateLimit: { limit: 30, windowMs: 60 * 1000, prefix: 'predictions:custom:write' },
   }
 );

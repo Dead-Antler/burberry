@@ -1,18 +1,85 @@
 import { sqliteTable, text, integer, unique, index } from 'drizzle-orm/sqlite-core';
 
 // ============================================================================
-// User Management
+// Better Auth Tables
 // ============================================================================
 
+/**
+ * Users table - Core user data
+ * Note: Password is stored in the accounts table (for credential provider)
+ */
 export const users = sqliteTable('users', {
   id: text('id').primaryKey(),
   name: text('name'),
   email: text('email').notNull().unique(),
-  password: text('password').notNull(),
-  isAdmin: integer('isAdmin', { mode: 'boolean' }).notNull().default(false),
+  emailVerified: integer('emailVerified', { mode: 'boolean' }).notNull().default(false),
+  image: text('image'),
+  // Role-based access control (admin plugin)
+  role: text('role').default('user'),
+  banned: integer('banned', { mode: 'boolean' }).default(false),
+  banReason: text('banReason'),
+  banExpires: integer('banExpires', { mode: 'timestamp_ms' }),
   createdAt: integer('createdAt', { mode: 'timestamp_ms' }).$defaultFn(() => new Date()),
   updatedAt: integer('updatedAt', { mode: 'timestamp_ms' }).$defaultFn(() => new Date()),
 });
+
+/**
+ * Sessions table - Database-backed sessions (replaces JWT)
+ */
+export const sessions = sqliteTable('sessions', {
+  id: text('id').primaryKey(),
+  userId: text('userId').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  token: text('token').notNull().unique(),
+  expiresAt: integer('expiresAt', { mode: 'timestamp_ms' }).notNull(),
+  ipAddress: text('ipAddress'),
+  userAgent: text('userAgent'),
+  // Admin plugin: tracks if session is impersonated
+  impersonatedBy: text('impersonatedBy'),
+  createdAt: integer('createdAt', { mode: 'timestamp_ms' }).$defaultFn(() => new Date()),
+  updatedAt: integer('updatedAt', { mode: 'timestamp_ms' }).$defaultFn(() => new Date()),
+}, (table) => ({
+  userIdx: index('sessions_userId_idx').on(table.userId),
+  tokenIdx: index('sessions_token_idx').on(table.token),
+}));
+
+/**
+ * Accounts table - Auth provider accounts (credential, OAuth, etc.)
+ * For email/password auth, password is stored here with providerId="credential"
+ */
+export const accounts = sqliteTable('accounts', {
+  id: text('id').primaryKey(),
+  userId: text('userId').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  accountId: text('accountId').notNull(), // For credentials, this equals oduserId
+  providerId: text('providerId').notNull(), // "credential" for email/password
+  // OAuth fields (not used for credentials)
+  accessToken: text('accessToken'),
+  refreshToken: text('refreshToken'),
+  accessTokenExpiresAt: integer('accessTokenExpiresAt', { mode: 'timestamp_ms' }),
+  refreshTokenExpiresAt: integer('refreshTokenExpiresAt', { mode: 'timestamp_ms' }),
+  scope: text('scope'),
+  idToken: text('idToken'),
+  // Password for credential provider
+  password: text('password'),
+  createdAt: integer('createdAt', { mode: 'timestamp_ms' }).$defaultFn(() => new Date()),
+  updatedAt: integer('updatedAt', { mode: 'timestamp_ms' }).$defaultFn(() => new Date()),
+}, (table) => ({
+  userIdx: index('accounts_userId_idx').on(table.userId),
+  providerAccountIdx: unique('accounts_providerId_accountId').on(table.providerId, table.accountId),
+}));
+
+/**
+ * Verifications table - Email verification tokens, password reset, etc.
+ */
+export const verifications = sqliteTable('verifications', {
+  id: text('id').primaryKey(),
+  identifier: text('identifier').notNull(), // Usually email address
+  value: text('value').notNull(), // The token
+  expiresAt: integer('expiresAt', { mode: 'timestamp_ms' }).notNull(),
+  createdAt: integer('createdAt', { mode: 'timestamp_ms' }).$defaultFn(() => new Date()),
+  updatedAt: integer('updatedAt', { mode: 'timestamp_ms' }).$defaultFn(() => new Date()),
+}, (table) => ({
+  identifierIdx: index('verifications_identifier_idx').on(table.identifier),
+}));
 
 // ============================================================================
 // Core Wrestling Data
@@ -195,3 +262,21 @@ export const userEventContrarian = sqliteTable('userEventContrarian', {
   eventIdx: index('userEventContrarian_eventId_idx').on(table.eventId),
   userEventUnique: unique('userEventContrarian_userId_eventId').on(table.userId, table.eventId),
 }));
+
+// ============================================================================
+// Application Settings
+// ============================================================================
+
+/**
+ * Global application settings
+ * Keys are namespaced (e.g., 'predictions.reusable', 'ui.theme')
+ * JSON values are validated against schemas defined in settings-schemas.ts
+ */
+export const settings = sqliteTable('settings', {
+  key: text('key').primaryKey(), // Namespaced key, e.g., 'predictions.reusable'
+  scope: text('scope').notNull().default('global'), // 'global' for now, future: 'user'
+  type: text('type').notNull(), // 'string' | 'boolean' | 'number' | 'json'
+  value: text('value').notNull(), // Stored as text, parsed based on type
+  createdAt: integer('createdAt', { mode: 'timestamp_ms' }).$defaultFn(() => new Date()),
+  updatedAt: integer('updatedAt', { mode: 'timestamp_ms' }).$defaultFn(() => new Date()),
+});

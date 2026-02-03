@@ -5,6 +5,15 @@ import { sanitizeText } from './api-helpers';
 // Common Schemas
 // ============================================================================
 
+// Email validation with normalization (lowercase, trim)
+// Used by user creation/update and auth flows
+export const emailSchema = z
+  .string()
+  .email('Invalid email address')
+  .min(3, 'Email must be at least 3 characters')
+  .max(255, 'Email must not exceed 255 characters')
+  .transform((email) => email.toLowerCase().trim());
+
 // More precise timestamp validation
 export const timestampSchema = z
   .union([
@@ -322,4 +331,27 @@ export const paginationSchema = z.object({
   limit: z.coerce.number().int().positive().max(100).default(20),
   sortBy: z.string().optional(),
   sortOrder: z.enum(['asc', 'desc']).default('asc'),
+});
+
+// ============================================================================
+// User Schemas
+// ============================================================================
+
+export const createUserSchema = z.object({
+  email: emailSchema,
+  password: z.string().min(8, 'Password must be at least 8 characters').max(128),
+  name: z.string().max(100).transform((s) => sanitizeText(s, 100)).nullable().optional(),
+  isAdmin: z.boolean().optional().default(false),
+});
+
+export const updateUserSchema = z.object({
+  email: emailSchema.optional(),
+  password: z.string().min(8, 'Password must be at least 8 characters').max(128).optional(),
+  name: z.string().max(100).transform((s) => sanitizeText(s, 100)).nullable().optional(),
+  isAdmin: z.boolean().optional(),
+});
+
+export const userQuerySchema = z.object({
+  search: z.string().max(100).transform((s) => sanitizeText(s, 100)).optional(),
+  isAdmin: z.enum(['true', 'false']).transform((v) => v === 'true').optional(),
 });

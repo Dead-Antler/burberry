@@ -1,9 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { auth } from '@/auth';
-import { rateLimit } from './rate-limit';
-import type { Session } from 'next-auth';
+import { headers } from 'next/headers';
+import { auth } from './auth';
 import { randomUUID } from 'crypto';
 import DOMPurify from 'isomorphic-dompurify';
+import { db } from './db';
+import { users } from './schema';
+import { eq } from 'drizzle-orm';
 
 // Re-export error constants for convenience
 export { API_ERRORS, getErrorMessage } from './api-errors';
@@ -22,9 +24,36 @@ export function apiSuccess<T>(data: T, status: number = 200) {
   return NextResponse.json(data, { status });
 }
 
-// Use Session directly from next-auth instead of deriving from auth() return type
-// auth() has multiple overloads and TypeScript gets confused
-export type AuthSession = Session;
+/**
+ * Better Auth session type
+ * Contains both session metadata and user data
+ */
+export interface AuthSession {
+  session: {
+    id: string;
+    userId: string;
+    token: string;
+    expiresAt: Date;
+    ipAddress?: string | null;
+    userAgent?: string | null;
+    impersonatedBy?: string | null;
+    createdAt: Date;
+    updatedAt: Date;
+  };
+  user: {
+    id: string;
+    name: string | null;
+    email: string;
+    emailVerified: boolean;
+    image: string | null;
+    role: string | null;
+    banned: boolean | null;
+    banReason: string | null;
+    banExpires: Date | null;
+    createdAt: Date;
+    updatedAt: Date;
+  };
+}
 
 export interface ApiHandlerContext {
   session: AuthSession;
@@ -43,25 +72,38 @@ export function getUserId(session: AuthSession): string {
  * Returns user session if authenticated, throws error response if not
  */
 export async function requireAuth(_req: NextRequest): Promise<AuthSession> {
-  // Call auth() with no args to get Session | null (not middleware)
-  const getSession = auth as () => Promise<Session | null>;
-  const session = await getSession();
+  // Get session from Better Auth using headers
+  const headersList = await headers();
+  const session = await auth.api.getSession({
+    headers: headersList,
+  });
 
   if (!session || !session.user?.id) {
     throw apiError('Unauthorized', 401);
   }
 
-  return session;
+  return session as AuthSession;
 }
 
 /**
  * Admin authorization middleware for API routes
  * Returns user session if user is admin, throws error response if not
+ *
+ * IMPORTANT: This checks the database for current admin status, not the cached session.
+ * This ensures admin revocation takes effect immediately without requiring re-login.
  */
 export async function requireAdmin(req: NextRequest): Promise<AuthSession> {
   const session = await requireAuth(req);
 
-  if (!session.user?.isAdmin) {
+  // Always verify admin status from database to ensure freshness
+  // This prevents stale admin privileges from being used after revocation
+  const [user] = await db
+    .select({ role: users.role })
+    .from(users)
+    .where(eq(users.id, session.user.id))
+    .limit(1);
+
+  if (!user || user.role !== 'admin') {
     throw apiError('Forbidden - Admin access required', 403);
   }
 
@@ -69,47 +111,7 @@ export async function requireAdmin(req: NextRequest): Promise<AuthSession> {
 }
 
 /**
- * Rate limiting middleware for API routes
- */
-export function requireRateLimit(
-  req: NextRequest,
-  options: { limit: number; windowMs: number; prefix?: string } = {
-    limit: 100,
-    windowMs: 60 * 1000, // 100 requests per minute by default
-    prefix: 'api',
-  }
-) {
-  const ip = req.headers.get('x-forwarded-for') || req.headers.get('x-real-ip') || 'unknown';
-  const identifier = `${options.prefix}:${ip}`;
-
-  const rateLimitResult = rateLimit(identifier, {
-    limit: options.limit,
-    windowMs: options.windowMs,
-  });
-
-  if (!rateLimitResult.success) {
-    const secondsRemaining = Math.ceil((rateLimitResult.reset - Date.now()) / 1000);
-    throw NextResponse.json(
-      {
-        error: `Too many requests. Please try again in ${secondsRemaining} second${secondsRemaining !== 1 ? 's' : ''}.`,
-      },
-      {
-        status: 429,
-        headers: {
-          'Retry-After': String(secondsRemaining),
-          'X-RateLimit-Limit': String(rateLimitResult.limit),
-          'X-RateLimit-Remaining': String(rateLimitResult.remaining),
-          'X-RateLimit-Reset': String(rateLimitResult.reset),
-        },
-      }
-    );
-  }
-
-  return rateLimitResult;
-}
-
-/**
- * Wrapper for API route handlers that provides error handling, auth, and rate limiting
+ * Wrapper for API route handlers that provides error handling and auth
  */
 export function apiHandler(
   handler: (
@@ -122,7 +124,6 @@ export function apiHandler(
   options?: {
     requireAuth?: boolean;
     requireAdmin?: boolean;
-    rateLimit?: { limit: number; windowMs: number; prefix?: string };
   }
 ) {
   return async (req: NextRequest, context?: { params?: Promise<Record<string, string>> }) => {
@@ -133,11 +134,6 @@ export function apiHandler(
     let session: AuthSession | null = null;
 
     try {
-      // Apply rate limiting if configured
-      if (options?.rateLimit) {
-        requireRateLimit(req, options.rateLimit);
-      }
-
       // Apply authentication if required (default: true)
       if (options?.requireAuth !== false) {
         session = await requireAuth(req);
@@ -219,6 +215,7 @@ const VALID_PREFIXES = [
   'custompred',
   'eventcustompred',
   'contrarian',
+  'user',
 ] as const;
 
 export type EntityPrefix = typeof VALID_PREFIXES[number];

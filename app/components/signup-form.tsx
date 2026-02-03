@@ -20,37 +20,52 @@ import {
   FieldLabel,
 } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
-import { signIn } from '@/app/lib/auth-client';
+import { signUp } from '@/app/lib/auth-client';
 
-interface LoginFormProps {
-  signupEnabled?: boolean;
+interface SignupFormProps {
   className?: string;
 }
 
-export function LoginForm({ signupEnabled = false, className }: LoginFormProps) {
+export function SignupForm({ className }: SignupFormProps) {
   const router = useRouter();
+  const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setIsLoading(true);
     setError(null);
 
-    const result = await signIn.email({
+    // Validate passwords match
+    if (password !== confirmPassword) {
+      setError('Passwords do not match');
+      return;
+    }
+
+    // Validate password length
+    if (password.length < 8) {
+      setError('Password must be at least 8 characters');
+      return;
+    }
+
+    setIsLoading(true);
+
+    const result = await signUp.email({
+      name,
       email,
       password,
     });
 
     if (result.error) {
-      // Always show generic message to prevent email enumeration
-      setError('Invalid email or password');
+      setError(result.error.message || 'Failed to create account');
       setIsLoading(false);
       return;
     }
 
+    // Redirect to home page after successful signup
     router.push('/');
     router.refresh();
   };
@@ -59,14 +74,27 @@ export function LoginForm({ signupEnabled = false, className }: LoginFormProps) 
     <div className={cn('flex flex-col gap-6', className)}>
       <Card>
         <CardHeader>
-          <CardTitle className="text-2xl">Login</CardTitle>
+          <CardTitle className="text-2xl">Create an account</CardTitle>
           <CardDescription>
-            Enter your email below to login to your account
+            Enter your information below to create your account
           </CardDescription>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit}>
             <FieldGroup>
+              <Field>
+                <FieldLabel htmlFor="name">Name</FieldLabel>
+                <Input
+                  id="name"
+                  type="text"
+                  placeholder="John Doe"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  required
+                  disabled={isLoading}
+                  autoComplete="name"
+                />
+              </Field>
               <Field>
                 <FieldLabel htmlFor="email">Email</FieldLabel>
                 <Input
@@ -89,7 +117,22 @@ export function LoginForm({ signupEnabled = false, className }: LoginFormProps) 
                   onChange={(e) => setPassword(e.target.value)}
                   required
                   disabled={isLoading}
-                  autoComplete="current-password"
+                  autoComplete="new-password"
+                />
+                <FieldDescription>
+                  Must be at least 8 characters long.
+                </FieldDescription>
+              </Field>
+              <Field>
+                <FieldLabel htmlFor="confirm-password">Confirm Password</FieldLabel>
+                <Input
+                  id="confirm-password"
+                  type="password"
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  required
+                  disabled={isLoading}
+                  autoComplete="new-password"
                 />
               </Field>
               {error && (
@@ -97,14 +140,12 @@ export function LoginForm({ signupEnabled = false, className }: LoginFormProps) 
               )}
               <Field>
                 <Button type="submit" className="w-full" disabled={isLoading}>
-                  {isLoading ? 'Signing in...' : 'Login'}
+                  {isLoading ? 'Creating account...' : 'Create Account'}
                 </Button>
-                {signupEnabled && (
-                  <FieldDescription className="text-center">
-                    Don&apos;t have an account?{' '}
-                    <Link href="/signup">Sign up</Link>
-                  </FieldDescription>
-                )}
+                <FieldDescription className="text-center">
+                  Already have an account?{' '}
+                  <Link href="/login">Sign in</Link>
+                </FieldDescription>
               </Field>
             </FieldGroup>
           </form>

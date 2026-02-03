@@ -1,8 +1,9 @@
 "use client"
 
 import { useEffect, useState } from "react"
+import { useRouter } from "next/navigation"
 import { LogOut, User } from "lucide-react"
-import { signOut } from "next-auth/react"
+import { signOut } from "@/app/lib/auth-client"
 
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import {
@@ -32,6 +33,7 @@ interface NavUserProps {
 
 export function NavUser({ user }: NavUserProps) {
   const { isMobile } = useSidebar()
+  const router = useRouter()
   const [mounted, setMounted] = useState(false)
 
   useEffect(() => {
@@ -46,6 +48,12 @@ export function NavUser({ user }: NavUserProps) {
         .toUpperCase()
         .slice(0, 2)
     : "U"
+
+  const handleSignOut = async () => {
+    await signOut()
+    router.push("/login")
+    router.refresh()
+  }
 
   const userButton = (
     <SidebarMenuButton
@@ -111,7 +119,7 @@ export function NavUser({ user }: NavUserProps) {
               Profile
             </DropdownMenuItem>
             <DropdownMenuSeparator />
-            <DropdownMenuItem onClick={() => signOut({ callbackUrl: "/login" })}>
+            <DropdownMenuItem onClick={handleSignOut}>
               <LogOut className="mr-2 h-4 w-4" />
               Sign out
             </DropdownMenuItem>

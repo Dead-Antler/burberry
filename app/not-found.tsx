@@ -1,11 +1,13 @@
 import Link from "next/link"
-import { auth } from "@/auth"
+import { headers } from "next/headers"
+import { auth } from "@/app/lib/auth"
 import { AppSidebar } from "@/app/components/app-sidebar"
 import { SiteHeader } from "@/app/components/site-header"
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar"
 import { Button } from "@/components/ui/button"
 import { FileQuestion } from "lucide-react"
 import { getUserFromSession } from "@/app/lib/session-utils"
+import type { AuthSession } from "@/app/lib/api-helpers"
 
 function NotFoundContent() {
   return (
@@ -27,7 +29,10 @@ function NotFoundContent() {
 }
 
 export default async function NotFound() {
-  const session = await auth()
+  const headersList = await headers()
+  const session = await auth.api.getSession({
+    headers: headersList,
+  }) as AuthSession | null
   const user = getUserFromSession(session)
 
   // If authenticated, show within the app shell

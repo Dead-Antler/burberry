@@ -43,6 +43,9 @@ import type {
   ScoreEventResponse,
   UserScore,
   Leaderboard,
+  User,
+  CreateUserRequest,
+  UpdateUserRequest,
 } from './api-types';
 
 /**
@@ -560,6 +563,85 @@ class ApiClient {
   async getUserScore(eventId: string, userId: string): Promise<UserScore | null> {
     return this.request(`/api/events/${eventId}/score?userId=${userId}`);
   }
+
+  // ============================================================================
+  // Users (Admin)
+  // ============================================================================
+
+  async getUsers(params?: {
+    search?: string;
+    isAdmin?: boolean;
+    page?: number;
+    limit?: number;
+  }): Promise<{ data: User[]; pagination: PaginationInfo }> {
+    const query = new URLSearchParams();
+    if (params?.search) query.set('search', params.search);
+    if (params?.isAdmin !== undefined) query.set('isAdmin', String(params.isAdmin));
+    if (params?.page) query.set('page', String(params.page));
+    if (params?.limit) query.set('limit', String(params.limit));
+
+    return this.request<{ data: User[]; pagination: PaginationInfo }>(`/api/users?${query}`);
+  }
+
+  async getUser(id: string): Promise<User> {
+    return this.request(`/api/users/${id}`);
+  }
+
+  async createUser(data: CreateUserRequest): Promise<User> {
+    return this.request('/api/users', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async updateUser(id: string, data: UpdateUserRequest): Promise<User> {
+    return this.request(`/api/users/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async deleteUser(id: string): Promise<{ message: string; id: string }> {
+    return this.request(`/api/users/${id}`, {
+      method: 'DELETE',
+    });
+  }
+
+  // ============================================================================
+  // Settings (Admin)
+  // ============================================================================
+
+  async getSettings(namespace?: string): Promise<Setting[]> {
+    const query = namespace ? `?namespace=${namespace}` : '';
+    return this.request(`/api/settings${query}`);
+  }
+
+  async getSetting(key: string): Promise<{ key: string; value: unknown }> {
+    return this.request(`/api/settings/${encodeURIComponent(key)}`);
+  }
+
+  async setSetting(key: string, value: unknown, type: 'string' | 'boolean' | 'number' | 'json'): Promise<Setting> {
+    return this.request('/api/settings', {
+      method: 'POST',
+      body: JSON.stringify({ key, value, type }),
+    });
+  }
+
+  async deleteSetting(key: string): Promise<{ deleted: boolean }> {
+    return this.request(`/api/settings/${encodeURIComponent(key)}`, {
+      method: 'DELETE',
+    });
+  }
+}
+
+// Setting type for API responses
+export interface Setting {
+  key: string;
+  scope: string;
+  type: string;
+  value: unknown;
+  createdAt: string | null;
+  updatedAt: string | null;
 }
 
 /**

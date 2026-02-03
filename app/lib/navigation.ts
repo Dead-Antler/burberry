@@ -6,6 +6,7 @@ import {
   Settings,
   Trophy,
   Users,
+  UserCog,
   Swords,
   Crown,
   Target,
@@ -74,8 +75,14 @@ export const NAV_ITEMS: NavItem[] = [
     adminOnly: true,
   },
   {
+    title: 'Users',
+    url: '/admin/users',
+    icon: UserCog,
+    adminOnly: true,
+  },
+  {
     title: 'Settings',
-    url: '/settings',
+    url: '/admin/settings',
     icon: Settings,
     adminOnly: true,
   },

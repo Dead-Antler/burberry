@@ -1,19 +1,24 @@
-import type { Session } from 'next-auth'
+import type { AuthSession } from './api-helpers';
 
 export interface AppUser {
-  name: string
-  email: string
-  isAdmin: boolean
+  id: string;
+  name: string;
+  email: string;
+  isAdmin: boolean;
 }
 
-export function getUserFromSession(session: Session | null): AppUser | null {
+/**
+ * Extract user data from Better Auth session
+ */
+export function getUserFromSession(session: AuthSession | null): AppUser | null {
   if (!session?.user) {
-    return null
+    return null;
   }
 
   return {
+    id: session.user.id,
     name: session.user.name ?? '',
     email: session.user.email ?? '',
-    isAdmin: session.user.isAdmin ?? false,
-  }
+    isAdmin: session.user.role === 'admin',
+  };
 }

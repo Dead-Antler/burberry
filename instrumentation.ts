@@ -15,5 +15,9 @@ export async function register() {
       // Fail fast - don't start the app if migrations fail
       process.exit(1);
     }
+
+    // Initialize app (creates admin user on first run)
+    const { initializeApp } = await import('./app/lib/init');
+    await initializeApp();
   }
 }

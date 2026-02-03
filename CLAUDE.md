@@ -7,7 +7,7 @@ Next.js 16 application with authentication and a wrestling prediction system for
 - **Framework**: Next.js 16.1.6 (App Router)
 - **Runtime**: Bun
 - **Database**: SQLite with Drizzle ORM
-- **Auth**: Auth.js v5 (credentials provider, JWT sessions)
+- **Auth**: Better Auth v1.4 (credentials provider, database sessions)
 - **UI**: shadcn/ui + Tailwind CSS 4
 - **TypeScript**: v5
 
@@ -16,8 +16,7 @@ Next.js 16 application with authentication and a wrestling prediction system for
 ```bash
 bun install
 bun db:migrate
-bun db:create-user    # Create admin user (answer 'y' to admin prompt)
-bun dev
+bun dev               # Creates admin user automatically on first run if ADMIN_EMAIL is set
 ```
 
 ## Project Structure
@@ -32,18 +31,20 @@ app/
     api-helpers.ts          # Middleware, validation, utilities
     api-errors.ts           # Standardized error messages
     api-types.ts            # TypeScript types
+    auth.ts                 # Better Auth config
+    auth-client.ts          # Better Auth client
     db.ts                   # Database connection
-    rate-limit.ts           # In-memory rate limiter
-    schema.ts               # Drizzle schema (14 tables)
+    init.ts                 # App initialization (admin user creation)
+    schema.ts               # Drizzle schema
+    settings-schemas.ts     # Settings type definitions
+    settings-utils.ts       # Settings helper functions
     validation-schemas.ts   # Zod schemas
   login/page.tsx            # Login page
   page.tsx                  # Protected home
-auth.ts                     # Auth.js config
 proxy.ts                    # Route protection middleware
 data/database.db            # SQLite database (gitignored)
 docs/API.md                 # Complete API reference
 scripts/
-  create-user.ts            # Interactive user creation
   seed-wrestling-data.ts    # Initial data seeding
 ```
 
@@ -51,23 +52,24 @@ scripts/
 
 ### 1. Credentials-Only Auth
 - Small private system - no OAuth needed
-- Single `users` table, JWT sessions, no external dependencies
+- Better Auth with database-backed sessions
+- Automatic admin user creation on first run
 
 ### 2. SQLite Database
 - Single-file storage (`data/database.db`)
 - Perfect for single-instance deployment
 - Easy backup: just copy the file
 
-### 3. In-Memory Rate Limiting
+### 3. Built-in Rate Limiting (Better Auth)
 - Login: 5 attempts/15min per IP
-- API: 100 requests/min per IP
-- LRU eviction, tiered capacity, IPv6 normalization
-- Resets on restart (acceptable for private use)
+- Sign-up: 5 attempts/hour per IP
+- Other auth endpoints: 100 requests/min per IP
+- In-memory storage, resets on restart (acceptable for private use)
 
 ### 4. Two-Tier RBAC
 - **Normal users**: View data, make predictions
 - **Admins**: Create/update/delete entities, enter results, score events
-- `isAdmin` flag in JWT, server-side enforcement
+- `role` field in users table, server-side enforcement (verified against database)
 
 ### 5. RESTful API Design
 - All business logic in API routes
@@ -77,11 +79,12 @@ scripts/
 
 ## Database Schema
 
-**14 tables** in `app/lib/schema.ts`:
+**15 tables** in `app/lib/schema.ts`:
 
 | Category | Tables |
 |----------|--------|
-| Users | `users` |
+| Auth | `users`, `sessions`, `accounts`, `verifications` |
+| Settings | `settings` |
 | Wrestling | `brands`, `wrestlers`, `wrestlerNames`, `groups`, `groupMembers` |
 | Events | `events`, `matches`, `matchParticipants` |
 | Predictions | `matchPredictions`, `customPredictionTemplates`, `eventCustomPredictions`, `userCustomPredictions`, `userEventContrarian` |
@@ -116,11 +119,18 @@ scripts/
 |--------|------------|
 | Brute force | Rate limiting (5/15min) |
 | SQL injection | Drizzle ORM parameterized queries |
-| Session hijack | HTTP-only, Secure cookies |
-| CSRF | Auth.js built-in protection |
+| Session hijack | HTTP-only, Secure cookies, database sessions |
+| CSRF | Better Auth built-in protection |
 | XSS | DOMPurify input sanitization |
-| Timing attacks | Constant-time auth (100ms minimum) |
-| Privilege escalation | Server-side RBAC enforcement |
+| Timing attacks | Constant-time password verification |
+| Privilege escalation | Server-side RBAC enforcement (database-verified) |
+
+## Settings System
+
+Key-value store for application configuration. See [docs/Settings.md](docs/Settings.md) for details.
+
+- `auth.signupEnabled` - Enable/disable user registration (default: false)
+- `predictions.reusableTemplates` - Custom prediction template strings
 
 ## API Reference
 
@@ -140,8 +150,6 @@ See [docs/API.md](docs/API.md) for complete endpoint documentation.
 { "error": "Message here" }
 ```
 
-**Rate Limit Headers**: `X-RateLimit-Limit`, `X-RateLimit-Remaining`, `X-RateLimit-Reset`
-
 ## Development
 
 ```bash
@@ -149,7 +157,6 @@ bun dev                    # Start dev server
 bun db:generate            # Generate migration from schema changes
 bun db:migrate             # Apply migrations
 bun db:studio              # Browse database
-bun db:create-user         # Create user interactively
 bun run build              # Production build
 ```
 
@@ -157,8 +164,10 @@ bun run build              # Production build
 
 ```bash
 DB_FILE_NAME=file:data/database.db
-AUTH_SECRET=your-secret-key    # Generate: openssl rand -base64 32
+AUTH_SECRET=your-secret-key       # Generate: openssl rand -base64 32
 AUTH_URL=http://localhost:3000
+ADMIN_EMAIL=admin@example.com     # Required for auto-creating admin on first run
+# ADMIN_PASSWORD=optional         # If not set, random password is generated
 ```
 
 ## Deployment
@@ -190,4 +199,4 @@ See [docs/UI.md](docs/UI.md) for detailed patterns. Key principles:
 
 ---
 
-**Last Updated**: 2026-02-01
+**Last Updated**: 2026-02-03

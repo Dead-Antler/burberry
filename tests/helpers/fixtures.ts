@@ -1,6 +1,10 @@
 /**
  * Test Fixtures
  * Factory functions for creating test data
+ *
+ * Works with Better Auth schema:
+ * - User data in `users` table (no password)
+ * - Passwords in `accounts` table with providerId='credential'
  */
 
 import { getTestDb, schema } from './db';
@@ -14,23 +18,50 @@ export const createId = (prefix: string) => `${prefix}_${randomUUID()}`;
 // Timestamps
 const now = () => new Date();
 
+// Placeholder password hash (scrypt format for Better Auth)
+const PLACEHOLDER_PASSWORD_HASH = '$scrypt$n=16384,r=8,p=1$placeholder$hash';
+
 /**
  * Create a test user
+ * Note: Creates both user and account records for Better Auth compatibility
  */
-export async function createUser(overrides: Partial<typeof schema.users.$inferInsert> = {}) {
+export async function createUser(
+  overrides: Partial<typeof schema.users.$inferInsert> & { isAdmin?: boolean } = {}
+) {
   const id = overrides.id ?? createId('user');
-  const data = {
+  const isAdmin = overrides.isAdmin ?? (overrides.role === 'admin');
+
+  const userData = {
     id,
     name: overrides.name ?? 'Test User',
     email: overrides.email ?? `test-${id}@example.com`,
-    password: overrides.password ?? '$2a$10$hashedpassword', // bcrypt hash placeholder
-    isAdmin: overrides.isAdmin ?? false,
+    emailVerified: overrides.emailVerified ?? false,
+    image: overrides.image ?? null,
+    role: isAdmin ? 'admin' : 'user',
+    banned: overrides.banned ?? false,
+    banReason: overrides.banReason ?? null,
+    banExpires: overrides.banExpires ?? null,
     createdAt: now(),
     updatedAt: now(),
   };
 
-  await db().insert(schema.users).values(data);
-  return data;
+  await db().insert(schema.users).values(userData);
+
+  // Create credential account for password
+  const accountData = {
+    id: `acc_${id}`,
+    userId: id,
+    accountId: id,
+    providerId: 'credential',
+    password: PLACEHOLDER_PASSWORD_HASH,
+    createdAt: now(),
+    updatedAt: now(),
+  };
+
+  await db().insert(schema.accounts).values(accountData);
+
+  // Return data with isAdmin convenience field
+  return { ...userData, isAdmin };
 }
 
 /**

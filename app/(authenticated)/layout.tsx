@@ -1,16 +1,22 @@
 import { redirect } from "next/navigation"
-import { auth } from "@/auth"
+import { headers } from "next/headers"
+import { auth } from "@/app/lib/auth"
 import { AppSidebar } from "@/app/components/app-sidebar"
 import { ErrorBoundary } from "@/app/components/error-boundary"
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar"
 import { getUserFromSession } from "@/app/lib/session-utils"
+import type { AuthSession } from "@/app/lib/api-helpers"
 
 export default async function AuthenticatedLayout({
   children,
 }: {
   children: React.ReactNode
 }) {
-  const session = await auth()
+  const headersList = await headers()
+  const session = await auth.api.getSession({
+    headers: headersList,
+  }) as AuthSession | null
+
   const user = getUserFromSession(session)
 
   if (!user) {

@@ -19,9 +19,6 @@ export const GET = apiHandler(
     const predictions = await matchPredictionService.list(session.user.id, { eventId, matchId });
 
     return apiSuccess(predictions);
-  },
-  {
-    rateLimit: { limit: 60, windowMs: 60 * 1000, prefix: 'predictions:match:read' },
   }
 );
 
@@ -36,8 +33,5 @@ export const POST = apiHandler(
     const prediction = await matchPredictionService.createOrUpdate(session.user.id, body);
 
     return apiSuccess(prediction, 201);
-  },
-  {
-    rateLimit: { limit: 30, windowMs: 60 * 1000, prefix: 'predictions:match:write' },
   }
 );

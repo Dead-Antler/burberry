@@ -50,6 +50,20 @@
       "when": 1769922522936,
       "tag": "0006_flawless_bucky",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "6",
+      "when": 1770076800000,
+      "tag": "0007_better_auth_migration",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "6",
+      "when": 1770163200000,
+      "tag": "0008_settings_table",
+      "breakpoints": true
     }
   ]
 }

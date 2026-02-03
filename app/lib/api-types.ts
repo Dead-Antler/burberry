@@ -40,6 +40,20 @@ export type User = {
   // Note: password field intentionally excluded for security
 };
 
+export type CreateUserRequest = {
+  email: string;
+  password: string;
+  name?: string | null;
+  isAdmin?: boolean;
+};
+
+export type UpdateUserRequest = {
+  email?: string;
+  password?: string;
+  name?: string | null;
+  isAdmin?: boolean;
+};
+
 // ============================================================================
 // Brand Types
 // ============================================================================

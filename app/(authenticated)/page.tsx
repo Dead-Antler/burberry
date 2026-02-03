@@ -1,11 +1,13 @@
 import { Suspense } from "react"
-import { auth } from "@/auth"
+import { headers } from "next/headers"
 import { cookies } from "next/headers"
+import { auth } from "@/app/lib/auth"
 import { SiteHeader } from "@/app/components/site-header"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Calendar, Target, Trophy, TrendingUp } from "lucide-react"
 import type { DashboardStats } from "@/app/api/dashboard/stats/route"
+import type { AuthSession } from "@/app/lib/api-helpers"
 
 function StatsCardsSkeleton() {
   return (
@@ -122,7 +124,10 @@ async function DashboardStatsCards() {
 }
 
 export default async function DashboardPage() {
-  const session = await auth()
+  const headersList = await headers()
+  const session = await auth.api.getSession({
+    headers: headersList,
+  }) as AuthSession | null
 
   return (
     <>

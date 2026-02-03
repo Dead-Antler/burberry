@@ -15,6 +15,7 @@ export {
   customPredictionService,
   contrarianService,
 } from './prediction.service';
+export { userService } from './user.service';
 
 // Export types
 export type { CreateBrandInput, UpdateBrandInput, ListBrandsParams } from './brand.service';
@@ -40,3 +41,4 @@ export type {
   ListCustomPredictionsParams,
   SetContrarianInput,
 } from './prediction.service';
+export type { CreateUserInput, UpdateUserInput, ListUsersParams } from './user.service';

@@ -4,7 +4,7 @@ This document describes all available REST API endpoints for the wrestling predi
 
 ## Authentication
 
-All API endpoints require authentication via session cookies (managed by Auth.js). Users must be logged in to access any API endpoint.
+All API endpoints require authentication via session cookies (managed by Better Auth). Users must be logged in to access any API endpoint.
 
 ## Authorization & Permissions
 
@@ -39,8 +39,10 @@ Attempting to access admin-only endpoints as a normal user returns:
 
 ## Rate Limiting
 
-- Global API rate limit: 100 requests per minute per IP
-- Auth endpoints have stricter limits (see CLAUDE.md)
+Authentication endpoints are rate limited by Better Auth:
+- Sign-in: 5 attempts per 15 minutes per IP
+- Sign-up: 5 attempts per hour per IP
+- Other auth endpoints: 100 requests per minute per IP
 
 ## Common Response Formats
 
@@ -56,14 +58,6 @@ Attempting to access admin-only endpoints as a normal user returns:
 {
   "error": "Error message"
 }
-```
-
-### Rate Limit Headers
-```
-X-RateLimit-Limit: 100
-X-RateLimit-Remaining: 99
-X-RateLimit-Reset: 1234567890
-Retry-After: 60
 ```
 
 ---
@@ -855,6 +849,124 @@ GET /api/events/event_wm40/score
 
 ---
 
+## Settings `[ADMIN ONLY]`
+
+Application settings stored as key-value pairs. See [Settings.md](Settings.md) for architecture details.
+
+### List All Settings
+```
+GET /api/settings?namespace=auth
+```
+
+**Query Parameters:**
+- `namespace` (optional): Filter by namespace prefix (e.g., `auth`, `predictions`)
+
+**Response:**
+```json
+[
+  {
+    "key": "auth.signupEnabled",
+    "scope": "global",
+    "type": "boolean",
+    "value": false,
+    "createdAt": "2024-01-01T00:00:00.000Z",
+    "updatedAt": "2024-01-01T00:00:00.000Z"
+  }
+]
+```
+
+### Get Setting
+```
+GET /api/settings/:key
+```
+
+**Response:**
+```json
+{
+  "key": "auth.signupEnabled",
+  "value": false
+}
+```
+
+### Create/Update Setting
+```
+POST /api/settings
+Content-Type: application/json
+
+{
+  "key": "auth.signupEnabled",
+  "type": "boolean",
+  "value": true
+}
+```
+
+**Setting Types:**
+- `string` - Plain text
+- `boolean` - true/false
+- `number` - Numeric value
+- `json` - Complex objects/arrays (validated against schema if defined)
+
+### Delete Setting
+```
+DELETE /api/settings/:key
+```
+
+---
+
+## Users `[ADMIN ONLY]`
+
+User management endpoints for administrators.
+
+### List All Users
+```
+GET /api/users?search=john&isAdmin=true
+```
+
+**Query Parameters:**
+- `search` (optional): Search by email or name
+- `isAdmin` (optional): Filter by admin status (`true`/`false`)
+- Standard pagination parameters (`page`, `limit`, `sortBy`, `sortOrder`)
+
+### Get User
+```
+GET /api/users/:id
+```
+
+### Create User
+```
+POST /api/users
+Content-Type: application/json
+
+{
+  "email": "user@example.com",
+  "password": "securepassword",
+  "name": "John Doe",
+  "isAdmin": false
+}
+```
+
+### Update User
+```
+PATCH /api/users/:id
+Content-Type: application/json
+
+{
+  "name": "John Updated",
+  "isAdmin": true
+}
+```
+
+**Note:** Cannot remove your own admin privileges (returns 403).
+
+### Delete User
+```
+DELETE /api/users/:id
+```
+
+**Note:** Cannot delete yourself (returns 403).
+
+---
+
 ## Error Codes
 
 | Status Code | Description |
@@ -863,7 +975,9 @@ GET /api/events/event_wm40/score
 | 201 | Created |
 | 400 | Bad Request (validation error) |
 | 401 | Unauthorized (not logged in) |
+| 403 | Forbidden (admin access required, or self-modification blocked) |
 | 404 | Not Found |
+| 409 | Conflict (duplicate resource) |
 | 429 | Too Many Requests (rate limited) |
 | 500 | Internal Server Error |
 
@@ -897,4 +1011,4 @@ See `app/lib/schema.ts` for full Drizzle schema definitions. All API responses u
 
 ---
 
-**Last Updated:** 2026-02-01
+**Last Updated:** 2026-02-03
