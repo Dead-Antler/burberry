@@ -3,8 +3,8 @@
  * Tests event lifecycle and scoring functionality
  */
 
-import { describe, test, expect, beforeAll, beforeEach, afterAll } from 'bun:test';
-import { setupTestDb, clearTestDb, closeTestDb, getTestDb, schema } from '../helpers/db';
+import { describe, test, expect, beforeAll, beforeEach } from 'bun:test';
+import { setupTestDb, clearTestDb, getTestDb, schema } from '../helpers/db';
 import {
   createBrand,
   createEvent,
@@ -28,10 +28,6 @@ describe('Event Service', () => {
 
   beforeEach(async () => {
     await clearTestDb();
-  });
-
-  afterAll(async () => {
-    await closeTestDb();
   });
 
   describe('Event Lifecycle', () => {
@@ -324,7 +320,7 @@ describe('Event Service', () => {
       const match2 = await createMatch(event.id, { matchOrder: 2, outcome: 'winner', winningSide: 2 });
 
       const user = await createUser();
-      await createContrarian(user.id, event.id, { isContrarian: true });
+      await createContrarian(user.id, event.id, { mode: 'contrarian' });
 
       // User predicted wrong on both matches
       await createMatchPrediction(user.id, match1.id, { predictedSide: 2, isCorrect: false });
@@ -338,17 +334,17 @@ describe('Event Service', () => {
 
       const allIncorrect = predictions.every(p => p.isCorrect === false);
 
-      await db.update(schema.userEventContrarian)
+      await db.update(schema.userEventJoin)
         .set({ didWinContrarian: allIncorrect })
         .where(and(
-          eq(schema.userEventContrarian.userId, user.id),
-          eq(schema.userEventContrarian.eventId, event.id)
+          eq(schema.userEventJoin.userId, user.id),
+          eq(schema.userEventJoin.eventId, event.id)
         ));
 
-      const [contrarian] = await db.select().from(schema.userEventContrarian)
+      const [contrarian] = await db.select().from(schema.userEventJoin)
         .where(and(
-          eq(schema.userEventContrarian.userId, user.id),
-          eq(schema.userEventContrarian.eventId, event.id)
+          eq(schema.userEventJoin.userId, user.id),
+          eq(schema.userEventJoin.eventId, event.id)
         ));
 
       expect(contrarian.didWinContrarian).toBe(true);
@@ -362,7 +358,7 @@ describe('Event Service', () => {
       const match2 = await createMatch(event.id, { matchOrder: 2, outcome: 'winner', winningSide: 2 });
 
       const user = await createUser();
-      await createContrarian(user.id, event.id, { isContrarian: true });
+      await createContrarian(user.id, event.id, { mode: 'contrarian' });
 
       // User predicted wrong on first, but got second correct
       await createMatchPrediction(user.id, match1.id, { predictedSide: 2, isCorrect: false });
@@ -376,17 +372,17 @@ describe('Event Service', () => {
 
       const allIncorrect = predictions.every(p => p.isCorrect === false);
 
-      await db.update(schema.userEventContrarian)
+      await db.update(schema.userEventJoin)
         .set({ didWinContrarian: allIncorrect })
         .where(and(
-          eq(schema.userEventContrarian.userId, user.id),
-          eq(schema.userEventContrarian.eventId, event.id)
+          eq(schema.userEventJoin.userId, user.id),
+          eq(schema.userEventJoin.eventId, event.id)
         ));
 
-      const [contrarian] = await db.select().from(schema.userEventContrarian)
+      const [contrarian] = await db.select().from(schema.userEventJoin)
         .where(and(
-          eq(schema.userEventContrarian.userId, user.id),
-          eq(schema.userEventContrarian.eventId, event.id)
+          eq(schema.userEventJoin.userId, user.id),
+          eq(schema.userEventJoin.eventId, event.id)
         ));
 
       expect(contrarian.didWinContrarian).toBe(false);
@@ -421,7 +417,7 @@ describe('Event Service', () => {
       await createMatchPrediction(user3.id, match2.id, { predictedSide: 2 });
 
       // User3 is contrarian
-      await createContrarian(user3.id, event.id, { isContrarian: true });
+      await createContrarian(user3.id, event.id, { mode: 'contrarian' });
 
       const db = getTestDb();
 
@@ -467,9 +463,9 @@ describe('Event Service', () => {
         .where(eq(schema.matchPredictions.userId, user3.id));
 
       const user3AllWrong = user3Predictions.every(p => p.isCorrect === false);
-      await db.update(schema.userEventContrarian)
+      await db.update(schema.userEventJoin)
         .set({ didWinContrarian: user3AllWrong })
-        .where(eq(schema.userEventContrarian.userId, user3.id));
+        .where(eq(schema.userEventJoin.userId, user3.id));
 
       // Verify results
       const scoredPredictions = await db.select().from(schema.matchPredictions)
@@ -494,8 +490,8 @@ describe('Event Service', () => {
       expect(user3Correct).toBe(2);
 
       // User 3 didn't win contrarian (got some right)
-      const [user3Contrarian] = await db.select().from(schema.userEventContrarian)
-        .where(eq(schema.userEventContrarian.userId, user3.id));
+      const [user3Contrarian] = await db.select().from(schema.userEventJoin)
+        .where(eq(schema.userEventJoin.userId, user3.id));
       expect(user3Contrarian.didWinContrarian).toBe(false);
     });
   });

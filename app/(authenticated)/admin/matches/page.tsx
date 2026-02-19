@@ -163,8 +163,8 @@ export default function ManageMatchesPage() {
     [selectedEvent, fetchMatches]
   )
 
-  // Can add/edit/delete matches on upcoming and open events
-  const canEditMatches = selectedEvent?.status === "upcoming" || selectedEvent?.status === "open"
+  // Can add/edit/delete matches on pending and open events
+  const canEditMatches = selectedEvent?.status === "pending" || selectedEvent?.status === "open"
   // Can still view matches on locked events (but not edit)
   const isEventEditable = canEditMatches || selectedEvent?.status === "locked"
 

@@ -2,8 +2,8 @@
  * Tests for entity helper functions
  */
 
-import { describe, test, expect, beforeAll, beforeEach, afterAll } from 'bun:test';
-import { setupTestDb, clearTestDb, closeTestDb, getTestDb, schema } from '../helpers/db';
+import { describe, test, expect, beforeAll, beforeEach } from 'bun:test';
+import { setupTestDb, clearTestDb, getTestDb, schema } from '../helpers/db';
 import { createBrand, createEvent, createMatch, createWrestler, createMatchParticipant } from '../helpers/fixtures';
 
 // We need to mock the db import for the entities module
@@ -16,10 +16,6 @@ describe('Entity Helpers', () => {
 
   beforeEach(async () => {
     await clearTestDb();
-  });
-
-  afterAll(async () => {
-    await closeTestDb();
   });
 
   describe('Event Status Validation', () => {

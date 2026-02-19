@@ -34,7 +34,9 @@ export const GET = apiHandler(async (req: NextRequest, { params }) => {
   const { searchParams } = new URL(req.url);
   const userId = searchParams.get('userId') || undefined;
 
-  const scores = await eventService.getScores(params.id, userId);
+  const scores = userId
+    ? await eventService.getUserScore(params.id, userId)
+    : await eventService.getScores(params.id);
 
   return apiSuccess(scores);
 });

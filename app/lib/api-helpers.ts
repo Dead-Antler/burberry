@@ -25,6 +25,19 @@ export function apiSuccess<T>(data: T, status: number = 200) {
 }
 
 /**
+ * API success response with cache headers for reference data
+ * Uses short max-age with stale-while-revalidate for rarely-changing data
+ */
+export function apiSuccessCached<T>(data: T, maxAge: number = 60, status: number = 200) {
+  const response = NextResponse.json(data, { status });
+  response.headers.set(
+    'Cache-Control',
+    `private, max-age=${maxAge}, stale-while-revalidate=${maxAge * 2}`
+  );
+  return response;
+}
+
+/**
  * Better Auth session type
  * Contains both session metadata and user data
  */
@@ -171,7 +184,6 @@ export function apiHandler(
         stack: error instanceof Error ? error.stack : undefined,
         method: req.method,
         url: req.url,
-        userId: session?.user?.id,
         timestamp: new Date().toISOString(),
       });
 
@@ -214,7 +226,7 @@ const VALID_PREFIXES = [
   'matchpred',
   'custompred',
   'eventcustompred',
-  'contrarian',
+  'usereventjoin',
   'user',
 ] as const;
 

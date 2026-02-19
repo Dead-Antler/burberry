@@ -3,8 +3,8 @@
  * Tests match predictions, custom predictions, and contrarian mode
  */
 
-import { describe, test, expect, beforeAll, beforeEach, afterAll } from 'bun:test';
-import { setupTestDb, clearTestDb, closeTestDb, getTestDb, schema } from '../helpers/db';
+import { describe, test, expect, beforeAll, beforeEach } from 'bun:test';
+import { setupTestDb, clearTestDb, getTestDb, schema } from '../helpers/db';
 import {
   createBrand,
   createEvent,
@@ -27,10 +27,6 @@ describe('Prediction Service', () => {
 
   beforeEach(async () => {
     await clearTestDb();
-  });
-
-  afterAll(async () => {
-    await closeTestDb();
   });
 
   describe('Match Predictions', () => {
@@ -314,17 +310,17 @@ describe('Prediction Service', () => {
       const event = await createEvent(brand.id, { status: 'open' });
       const user = await createUser();
 
-      const contrarian = await createContrarian(user.id, event.id, { isContrarian: true });
+      const contrarian = await createContrarian(user.id, event.id, { mode: 'contrarian' });
 
       const db = getTestDb();
-      const [dbContrarian] = await db.select().from(schema.userEventContrarian).where(
-        eq(schema.userEventContrarian.id, contrarian.id)
+      const [dbContrarian] = await db.select().from(schema.userEventJoin).where(
+        eq(schema.userEventJoin.id, contrarian.id)
       );
 
       expect(dbContrarian).toBeDefined();
       expect(dbContrarian.userId).toBe(user.id);
       expect(dbContrarian.eventId).toBe(event.id);
-      expect(dbContrarian.isContrarian).toBe(true);
+      expect(dbContrarian.mode).toBe('contrarian');
       expect(dbContrarian.didWinContrarian).toBeNull();
     });
 
@@ -339,11 +335,11 @@ describe('Prediction Service', () => {
       const db = getTestDb();
       let error: Error | null = null;
       try {
-        await db.insert(schema.userEventContrarian).values({
+        await db.insert(schema.userEventJoin).values({
           id: 'duplicate_id',
           userId: user.id,
           eventId: event.id,
-          isContrarian: true,
+          mode: 'contrarian',
           createdAt: new Date(),
           updatedAt: new Date(),
         });
@@ -361,13 +357,13 @@ describe('Prediction Service', () => {
 
       // User got all predictions wrong - wins contrarian
       const contrarian = await createContrarian(user.id, event.id, {
-        isContrarian: true,
+        mode: 'contrarian',
         didWinContrarian: true,
       });
 
       const db = getTestDb();
-      const [dbContrarian] = await db.select().from(schema.userEventContrarian).where(
-        eq(schema.userEventContrarian.id, contrarian.id)
+      const [dbContrarian] = await db.select().from(schema.userEventJoin).where(
+        eq(schema.userEventJoin.id, contrarian.id)
       );
 
       expect(dbContrarian.didWinContrarian).toBe(true);

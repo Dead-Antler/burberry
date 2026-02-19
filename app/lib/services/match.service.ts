@@ -37,6 +37,7 @@ export interface CreateMatchInput {
   matchType: string;
   matchOrder: number;
   unknownParticipants?: boolean;
+  isLocked?: boolean;
   participants?: ParticipantInput[];
 }
 
@@ -44,6 +45,7 @@ export interface UpdateMatchInput {
   matchType?: string;
   matchOrder?: number;
   unknownParticipants?: boolean;
+  isLocked?: boolean;
   outcome?: string | null;
   winningSide?: number | null;
   winnerParticipantId?: string | null;
@@ -182,11 +184,11 @@ export const matchService = {
    * @throws 400 if event is not open or participant references are invalid
    */
   async create(input: CreateMatchInput) {
-    // Validate event exists and is editable (upcoming or open)
+    // Validate event exists and is editable (pending, open, or locked for surprise matches)
     const event = await ensureExists(events, input.eventId, 'Event');
 
-    if (event.status !== 'upcoming' && event.status !== 'open') {
-      throw apiError('Cannot add matches to a locked or completed event', 400);
+    if (event.status === 'completed') {
+      throw apiError('Cannot add matches to a completed event', 400);
     }
 
     // Validate all participant references
@@ -210,6 +212,7 @@ export const matchService = {
           matchType: input.matchType,
           matchOrder: input.matchOrder,
           unknownParticipants: input.unknownParticipants ?? false,
+          isLocked: input.isLocked ?? false,
           outcome: null,
           winningSide: null,
           winnerParticipantId: null,
@@ -247,7 +250,7 @@ export const matchService = {
     // Ensure match exists
     const match = await ensureExists(matches, id, 'Match');
 
-    // If setting results, verify event is locked or completed
+    // If setting results, verify event is locked (not open, not completed)
     if (
       input.outcome !== undefined ||
       input.winningSide !== undefined ||
@@ -258,6 +261,10 @@ export const matchService = {
       if (event.status === 'open') {
         throw apiError('Cannot set match results for an open event. Lock the event first.', 400);
       }
+
+      if (event.status === 'completed') {
+        throw apiError('Cannot modify match results for a completed event.', 400);
+      }
     }
 
     const [updated] = await db
@@ -265,6 +272,7 @@ export const matchService = {
       .set({
         ...(input.matchType !== undefined && { matchType: input.matchType }),
         ...(input.matchOrder !== undefined && { matchOrder: input.matchOrder }),
+        ...(input.isLocked !== undefined && { isLocked: input.isLocked }),
         ...(input.unknownParticipants !== undefined && { unknownParticipants: input.unknownParticipants }),
         ...(input.outcome !== undefined && { outcome: input.outcome }),
         ...(input.winningSide !== undefined && { winningSide: input.winningSide }),
@@ -288,10 +296,10 @@ export const matchService = {
     // Ensure match exists
     const match = await ensureExists(matches, id, 'Match');
 
-    // Verify event is editable (upcoming or open)
+    // Verify event is editable (pending or open)
     const event = await ensureExists(events, match.eventId, 'Event');
 
-    if (event.status !== 'upcoming' && event.status !== 'open') {
+    if (event.status !== 'pending' && event.status !== 'open') {
       throw apiError('Cannot delete matches from a locked or completed event', 400);
     }
 
@@ -325,7 +333,7 @@ export const matchService = {
     const match = await ensureExists(matches, matchId, 'Match');
     const event = await ensureExists(events, match.eventId, 'Event');
 
-    if (event.status !== 'upcoming' && event.status !== 'open') {
+    if (event.status !== 'pending' && event.status !== 'open') {
       throw apiError('Cannot modify participants for a locked or completed event', 400);
     }
 
@@ -358,7 +366,7 @@ export const matchService = {
     // Get the event to verify it's editable
     const event = await ensureExists(events, eventId, 'Event');
 
-    if (event.status !== 'upcoming' && event.status !== 'open') {
+    if (event.status !== 'pending' && event.status !== 'open') {
       throw apiError('Cannot reorder matches for a locked or completed event', 400);
     }
 

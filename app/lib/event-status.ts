@@ -3,16 +3,16 @@
  * Shared logic for event status transitions and validation
  */
 
-export type EventStatus = 'upcoming' | 'open' | 'locked' | 'completed';
+export type EventStatus = 'pending' | 'open' | 'locked' | 'completed';
 
 /**
  * Valid status transitions for events
- * - upcoming -> open (when predictions open)
+ * - pending -> open (when predictions open)
  * - open -> locked (when event starts)
  * - locked -> completed (when results are entered)
  */
 export const VALID_STATUS_TRANSITIONS: Record<EventStatus, EventStatus[]> = {
-  upcoming: ['open'],
+  pending: ['open'],
   open: ['locked'],
   locked: ['completed'],
   completed: [],
@@ -38,14 +38,14 @@ export function getNextStatus(current: EventStatus): EventStatus | null {
  * Check if an event status allows editing (matches, participants)
  */
 export function isEditableStatus(status: EventStatus): boolean {
-  return status === 'upcoming' || status === 'open';
+  return status === 'pending' || status === 'open';
 }
 
 /**
  * Human-readable status descriptions
  */
 export const STATUS_DESCRIPTIONS: Record<EventStatus, string> = {
-  upcoming: 'Predictions not yet open',
+  pending: 'Admin is preparing matches',
   open: 'Accepting predictions',
   locked: 'Predictions closed, awaiting results',
   completed: 'Results entered and scored',

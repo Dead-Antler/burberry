@@ -1,7 +1,8 @@
 import { NextRequest } from 'next/server';
-import { apiHandler, apiSuccess, parseBody } from '@/app/lib/api-helpers';
+import { apiHandler, apiSuccess, parseBodyWithSchema } from '@/app/lib/api-helpers';
 import { settingsService } from '@/app/lib/services/settings.service';
-import { SettingType, settingTypes } from '@/app/lib/settings-schemas';
+import { SettingType } from '@/app/lib/settings-schemas';
+import { setSettingSchema } from '@/app/lib/validation-schemas';
 
 /**
  * GET /api/settings
@@ -39,23 +40,7 @@ export const GET = apiHandler(
  */
 export const POST = apiHandler(
   async (req: NextRequest) => {
-    const body = await parseBody<{
-      key: string;
-      type: SettingType;
-      value: unknown;
-    }>(req);
-
-    if (!body.key || typeof body.key !== 'string') {
-      throw new Error('key is required');
-    }
-
-    if (!body.type || !settingTypes.includes(body.type)) {
-      throw new Error(`type must be one of: ${settingTypes.join(', ')}`);
-    }
-
-    if (body.value === undefined) {
-      throw new Error('value is required');
-    }
+    const body = await parseBodyWithSchema(req, setSettingSchema);
 
     await settingsService.set(body.key, body.value, body.type);
 

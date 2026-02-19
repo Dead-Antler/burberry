@@ -1,5 +1,5 @@
 import { NextRequest } from 'next/server';
-import { apiHandler, apiSuccess, parseQueryWithSchema } from '@/app/lib/api-helpers';
+import { apiHandler, apiSuccessCached, parseQueryWithSchema } from '@/app/lib/api-helpers';
 import { wrestlerQuerySchema } from '@/app/lib/validation-schemas';
 import { wrestlerService } from '@/app/lib/services/wrestler.service';
 
@@ -28,5 +28,5 @@ export const GET = apiHandler(async (req: NextRequest) => {
     ? await wrestlerService.listWithGroups(listParams)
     : await wrestlerService.list(listParams);
 
-  return apiSuccess({ data });
+  return apiSuccessCached({ data });
 });

@@ -31,7 +31,7 @@ interface EventDialogProps {
 }
 
 const STATUS_OPTIONS: { value: EventStatus; label: string }[] = [
-  { value: "upcoming", label: "Upcoming" },
+  { value: "pending", label: "Pending" },
   { value: "open", label: "Open" },
   { value: "locked", label: "Locked" },
   { value: "completed", label: "Completed" },
@@ -39,7 +39,7 @@ const STATUS_OPTIONS: { value: EventStatus; label: string }[] = [
 
 // Valid status transitions (current status -> allowed next statuses)
 const VALID_TRANSITIONS: Record<EventStatus, EventStatus[]> = {
-  upcoming: ["upcoming", "open"],
+  pending: ["pending", "open"],
   open: ["open", "locked"],
   locked: ["locked", "completed"],
   completed: ["completed"],
@@ -60,7 +60,7 @@ export function EventDialog({
   const [name, setName] = useState("")
   const [brandId, setBrandId] = useState("")
   const [eventDate, setEventDate] = useState("")
-  const [status, setStatus] = useState<EventStatus>("upcoming")
+  const [status, setStatus] = useState<EventStatus>("pending")
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -72,7 +72,7 @@ export function EventDialog({
       setName(event?.name ?? "")
       setBrandId(event?.brandId ?? (brands[0]?.id ?? ""))
       setEventDate(event ? formatDateForInput(event.eventDate) : "")
-      setStatus(event?.status ?? "upcoming")
+      setStatus(event?.status ?? "pending")
       setError(null)
     }
   }, [open, event, brands])

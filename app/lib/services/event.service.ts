@@ -11,12 +11,14 @@ import {
   eventCustomPredictions,
   userCustomPredictions,
   customPredictionTemplates,
-  userEventContrarian,
+  userEventJoin,
   brands,
+  users,
 } from '../schema';
 import { eq, and, gte, lte, inArray, asc, desc, or, SQL } from 'drizzle-orm';
 import { generateId, apiError } from '../api-helpers';
 import type { PaginationParams } from '../api-helpers';
+import type { UserScore } from '../api-types';
 import {
   ensureExists,
   ensureForeignKey,
@@ -33,14 +35,14 @@ export interface CreateEventInput {
   name: string;
   brandId: string;
   eventDate: string | Date;
-  status?: 'upcoming' | 'open' | 'locked' | 'completed';
+  status?: 'pending' | 'open' | 'locked' | 'completed';
 }
 
 export interface UpdateEventInput {
   name?: string;
   brandId?: string;
   eventDate?: string | Date;
-  status?: 'upcoming' | 'open' | 'locked' | 'completed';
+  status?: 'pending' | 'open' | 'locked' | 'completed';
 }
 
 export interface ListEventsParams extends PaginationParams {
@@ -62,7 +64,7 @@ type MatchPredictionRecord = typeof matchPredictions.$inferSelect;
 type EventCustomPredictionRecord = typeof eventCustomPredictions.$inferSelect;
 type UserCustomPredictionRecord = typeof userCustomPredictions.$inferSelect;
 type CustomPredictionTemplateRecord = typeof customPredictionTemplates.$inferSelect;
-type ContrarianRecord = typeof userEventContrarian.$inferSelect;
+type ContrarianRecord = typeof userEventJoin.$inferSelect;
 
 // ============================================================================
 // Scoring Helper Functions
@@ -148,13 +150,24 @@ async function scoreMatchPredictions(
   }
 
   // Batch update all predictions in a single transaction
+  // Optimize by grouping by correctness value (2 queries instead of N)
   if (updates.length > 0) {
     await withTransaction(async (tx) => {
-      for (const update of updates) {
+      const correctIds = updates.filter((u) => u.isCorrect).map((u) => u.id);
+      const incorrectIds = updates.filter((u) => !u.isCorrect).map((u) => u.id);
+
+      if (correctIds.length > 0) {
         await tx
           .update(matchPredictions)
-          .set({ isCorrect: update.isCorrect })
-          .where(eq(matchPredictions.id, update.id));
+          .set({ isCorrect: true })
+          .where(inArray(matchPredictions.id, correctIds));
+      }
+
+      if (incorrectIds.length > 0) {
+        await tx
+          .update(matchPredictions)
+          .set({ isCorrect: false })
+          .where(inArray(matchPredictions.id, incorrectIds));
       }
     });
   }
@@ -246,8 +259,8 @@ async function scoreContrarian(eventId: string, matchIds: string[]): Promise<num
   // Get all contrarian users for this event
   const contrarianUsers = await db
     .select()
-    .from(userEventContrarian)
-    .where(and(eq(userEventContrarian.eventId, eventId), eq(userEventContrarian.isContrarian, true)));
+    .from(userEventJoin)
+    .where(and(eq(userEventJoin.eventId, eventId), eq(userEventJoin.mode, 'contrarian')));
 
   if (contrarianUsers.length === 0 || matchIds.length === 0) return 0;
 
@@ -278,9 +291,9 @@ async function scoreContrarian(eventId: string, matchIds: string[]): Promise<num
         userPredictions.length > 0 && userPredictions.every((p) => p.isCorrect === false);
 
       await tx
-        .update(userEventContrarian)
+        .update(userEventJoin)
         .set({ didWinContrarian })
-        .where(eq(userEventContrarian.id, contrarian.id));
+        .where(eq(userEventJoin.id, contrarian.id));
     }
   });
 
@@ -442,7 +455,7 @@ export const eventService = {
         name: input.name,
         brandId: input.brandId,
         eventDate: new Date(input.eventDate),
-        status: input.status ?? 'upcoming',
+        status: input.status ?? 'pending',
         ...timestamps(),
       })
       .returning();
@@ -532,7 +545,7 @@ export const eventService = {
   /**
    * Get leaderboard/scores for an event
    */
-  async getScores(eventId: string, userId?: string) {
+  async getScores(eventId: string): Promise<UserScore[]> {
     // Ensure event exists
     await ensureExists(events, eventId, 'Event');
 
@@ -540,19 +553,10 @@ export const eventService = {
     const eventMatches = await db.select().from(matches).where(eq(matches.eventId, eventId));
     const matchIds = eventMatches.map((m) => m.id);
 
-    // Build query conditions
-    const matchPredConditions: SQL[] = [];
-    if (matchIds.length > 0) {
-      matchPredConditions.push(inArray(matchPredictions.matchId, matchIds));
-    }
-    if (userId) {
-      matchPredConditions.push(eq(matchPredictions.userId, userId));
-    }
-
     // Fetch match predictions
     const matchPreds =
-      matchPredConditions.length > 0
-        ? await db.select().from(matchPredictions).where(and(...matchPredConditions))
+      matchIds.length > 0
+        ? await db.select().from(matchPredictions).where(inArray(matchPredictions.matchId, matchIds))
         : [];
 
     // Get custom predictions for the event
@@ -565,40 +569,33 @@ export const eventService = {
       )
       .where(eq(eventCustomPredictions.eventId, eventId));
 
-    const userCustomPreds = userId
-      ? customPreds.filter((p) => p.userCustomPredictions.userId === userId)
-      : customPreds;
-
     // Get contrarian status
     const contrarianRecords = await db
       .select()
-      .from(userEventContrarian)
-      .where(eq(userEventContrarian.eventId, eventId));
+      .from(userEventJoin)
+      .where(eq(userEventJoin.eventId, eventId));
 
     // Calculate scores by user
-    const scoresByUser: Record<
-      string,
-      {
-        userId: string;
-        matchPredictions: { total: number; correct: number };
-        customPredictions: { total: number; correct: number };
-        totalScore: number;
-        isContrarian: boolean;
-        didWinContrarian: boolean | null;
-      }
-    > = {};
+    const scoresByUser: Record<string, UserScore> = {};
+
+    const initScore = (uid: string): UserScore => ({
+      userId: uid,
+      matchPredictions: { total: 0, correct: 0 },
+      customPredictions: { total: 0, correct: 0 },
+      totalScore: 0,
+      isContrarian: false,
+      didWinContrarian: null,
+    });
+
+    // Initialize scores for all event participants
+    for (const record of contrarianRecords) {
+      scoresByUser[record.userId] = initScore(record.userId);
+    }
 
     // Process match predictions
     for (const pred of matchPreds) {
       if (!scoresByUser[pred.userId]) {
-        scoresByUser[pred.userId] = {
-          userId: pred.userId,
-          matchPredictions: { total: 0, correct: 0 },
-          customPredictions: { total: 0, correct: 0 },
-          totalScore: 0,
-          isContrarian: false,
-          didWinContrarian: null,
-        };
+        scoresByUser[pred.userId] = initScore(pred.userId);
       }
 
       scoresByUser[pred.userId].matchPredictions.total++;
@@ -608,16 +605,9 @@ export const eventService = {
     }
 
     // Process custom predictions
-    for (const { userCustomPredictions: pred } of userCustomPreds) {
+    for (const { userCustomPredictions: pred } of customPreds) {
       if (!scoresByUser[pred.userId]) {
-        scoresByUser[pred.userId] = {
-          userId: pred.userId,
-          matchPredictions: { total: 0, correct: 0 },
-          customPredictions: { total: 0, correct: 0 },
-          totalScore: 0,
-          isContrarian: false,
-          didWinContrarian: null,
-        };
+        scoresByUser[pred.userId] = initScore(pred.userId);
       }
 
       scoresByUser[pred.userId].customPredictions.total++;
@@ -629,7 +619,7 @@ export const eventService = {
     // Add contrarian status
     for (const contrarian of contrarianRecords) {
       if (scoresByUser[contrarian.userId]) {
-        scoresByUser[contrarian.userId].isContrarian = contrarian.isContrarian;
+        scoresByUser[contrarian.userId].isContrarian = contrarian.mode === 'contrarian';
         scoresByUser[contrarian.userId].didWinContrarian = contrarian.didWinContrarian;
       }
     }
@@ -637,20 +627,50 @@ export const eventService = {
     // Calculate total scores
     for (const id in scoresByUser) {
       const user = scoresByUser[id];
-      user.totalScore = user.matchPredictions.correct + user.customPredictions.correct;
+
+      // For contrarian mode: incorrect predictions count as points
+      if (user.isContrarian) {
+        const matchIncorrect = user.matchPredictions.total - user.matchPredictions.correct;
+        const customIncorrect = user.customPredictions.total - user.customPredictions.correct;
+        user.totalScore = matchIncorrect + customIncorrect;
+      } else {
+        // Normal mode: correct predictions count as points
+        user.totalScore = user.matchPredictions.correct + user.customPredictions.correct;
+      }
+    }
+
+    // Fetch user info for all users in the leaderboard
+    const userIds = Object.keys(scoresByUser);
+    const userRecords = userIds.length > 0
+      ? await db
+          .select({ id: users.id, name: users.name, email: users.email })
+          .from(users)
+          .where(inArray(users.id, userIds))
+      : [];
+
+    const userMap = new Map(userRecords.map(u => [u.id, { name: u.name, email: u.email }]));
+
+    // Add user info to scores
+    for (const id in scoresByUser) {
+      const userInfo = userMap.get(id);
+      if (userInfo) {
+        scoresByUser[id].user = userInfo;
+      }
     }
 
     // Sort by contrarian winners first, then by total score
-    const sortedScores = Object.values(scoresByUser).sort((a, b) => {
+    return Object.values(scoresByUser).sort((a, b) => {
       if (a.didWinContrarian && !b.didWinContrarian) return -1;
       if (!a.didWinContrarian && b.didWinContrarian) return 1;
       return b.totalScore - a.totalScore;
     });
+  },
 
-    if (userId) {
-      return sortedScores.find((s) => s.userId === userId) || null;
-    }
-
-    return sortedScores;
+  /**
+   * Get score for a specific user in an event
+   */
+  async getUserScore(eventId: string, userId: string): Promise<UserScore | null> {
+    const scores = await this.getScores(eventId);
+    return scores.find((s) => s.userId === userId) || null;
   },
 };

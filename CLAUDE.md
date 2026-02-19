@@ -65,6 +65,11 @@ scripts/
 - Sign-up: 5 attempts/hour per IP
 - Other auth endpoints: 100 requests/min per IP
 - In-memory storage, resets on restart (acceptable for private use)
+- **Decision**: No additional rate limiting on prediction endpoints
+  - All endpoints require authentication (natural rate limit)
+  - Small-scale private system with manual user provisioning
+  - Upsert logic prevents duplicate predictions per match
+  - SSE connections limited per user to prevent resource exhaustion
 
 ### 4. Two-Tier RBAC
 - **Normal users**: View data, make predictions
@@ -196,6 +201,25 @@ See [docs/UI.md](docs/UI.md) for detailed patterns. Key principles:
 - **docs/**: Only evergreen reference docs (API.md, UI.md). No implementation plans, completion summaries, or dated fix logs.
 - **Code comments**: Implementation details belong in the code itself.
 - Delete temporary docs (plans, TODOs, fix logs) once work is complete.
+
+## Code Review System
+
+This project uses a structured, multi-pass review system. The review
+process is defined in `REVIEW_AGENT.md` and the review criteria are
+defined in `REVIEW_STANDARDS_NEXTJS.md`.
+
+### Custom Commands
+
+- **"review"** → Read and follow `REVIEW_AGENT.md`, target: full codebase
+- **"review [path]"** → Read and follow `REVIEW_AGENT.md`, target: specified path
+- **"review accessibility"** → Scoped review, §6 only
+- **"review security"** → Scoped review, §8 only
+- **"review caching"** / **"review data fetching"** → Scoped review, §2 only
+- **"review server/client boundary"** → Scoped review, §1 and §2
+- **"review api routes"** → Scoped review, §2, §4, §8, §9
+- **"review predictions"** → Scoped review, §2, §5, §8, §9
+- **"continue"** → Advance to the next review pass
+- **"re-review after fixes"** → Re-review changed files for regressions
 
 ---
 

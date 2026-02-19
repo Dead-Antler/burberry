@@ -2,6 +2,7 @@ import { NextRequest } from 'next/server';
 import {
   apiHandler,
   apiSuccess,
+  apiSuccessCached,
   parseBodyWithSchema,
   parseQueryWithSchema,
   createPaginatedResponse,
@@ -19,7 +20,7 @@ export const GET = apiHandler(async (req: NextRequest) => {
 
   const { data, total } = await brandService.list(params);
 
-  return apiSuccess(createPaginatedResponse(data, total, params));
+  return apiSuccessCached(createPaginatedResponse(data, total, params));
 });
 
 /**

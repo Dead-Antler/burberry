@@ -1,6 +1,7 @@
 import { NextRequest } from 'next/server';
-import { apiHandler, apiSuccess, parseBody, validateRequired } from '@/app/lib/api-helpers';
+import { apiHandler, apiSuccess, parseBodyWithSchema } from '@/app/lib/api-helpers';
 import { customPredictionService } from '@/app/lib/services/prediction.service';
+import { createUserCustomPredictionSchema } from '@/app/lib/validation-schemas';
 
 /**
  * GET /api/predictions/custom
@@ -30,16 +31,7 @@ export const GET = apiHandler(
  */
 export const POST = apiHandler(
   async (req: NextRequest, { session }) => {
-    const body = await parseBody<{
-      eventCustomPredictionId: string;
-      predictionTime?: string | Date | null;
-      predictionCount?: number | null;
-      predictionWrestlerId?: string | null;
-      predictionBoolean?: boolean | null;
-      predictionText?: string | null;
-    }>(req);
-
-    validateRequired(body, ['eventCustomPredictionId']);
+    const body = await parseBodyWithSchema(req, createUserCustomPredictionSchema);
 
     const { prediction, isNew } = await customPredictionService.createOrUpdate(session.user.id, body);
 

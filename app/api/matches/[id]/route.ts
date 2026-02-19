@@ -38,6 +38,7 @@ export const PATCH = apiHandler(async (req: NextRequest, { params }) => {
   if (
     !body.matchType &&
     body.matchOrder === undefined &&
+    body.isLocked === undefined &&
     !body.outcome &&
     body.winningSide === undefined &&
     body.winnerParticipantId === undefined

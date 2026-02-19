@@ -136,6 +136,8 @@ export async function createMatch(
     eventId,
     matchType: overrides.matchType ?? 'Singles',
     matchOrder: overrides.matchOrder ?? 1,
+    unknownParticipants: overrides.unknownParticipants ?? false,
+    isLocked: overrides.isLocked ?? false,
     outcome: overrides.outcome ?? null,
     winningSide: overrides.winningSide ?? null,
     winnerParticipantId: overrides.winnerParticipantId ?? null,
@@ -153,7 +155,7 @@ export async function createMatch(
 export async function createMatchParticipant(
   matchId: string,
   participantId: string,
-  participantType: 'wrestler' | 'tag_team',
+  participantType: 'wrestler' | 'group',
   overrides: Partial<typeof schema.matchParticipants.$inferInsert> = {}
 ) {
   const id = overrides.id ?? createId('participant');
@@ -271,26 +273,37 @@ export async function createUserCustomPrediction(
 }
 
 /**
- * Create a contrarian record
+ * Create a user event join record
  */
 export async function createContrarian(
   userId: string,
   eventId: string,
-  overrides: Partial<typeof schema.userEventContrarian.$inferInsert> = {}
+  overrides: { mode?: 'normal' | 'contrarian'; didWinContrarian?: boolean | null } = {}
 ) {
-  const id = overrides.id ?? createId('contrarian');
+  const id = createId('usereventjoin');
   const data = {
     id,
     userId,
     eventId,
-    isContrarian: overrides.isContrarian ?? true,
+    mode: overrides.mode ?? 'normal',
     didWinContrarian: overrides.didWinContrarian ?? null,
     createdAt: now(),
     updatedAt: now(),
   };
 
-  await db().insert(schema.userEventContrarian).values(data);
+  await db().insert(schema.userEventJoin).values(data);
   return data;
+}
+
+/**
+ * Join an event (convenience wrapper for createContrarian)
+ */
+export async function joinEvent(
+  userId: string,
+  eventId: string,
+  mode: 'normal' | 'contrarian' = 'normal'
+) {
+  return createContrarian(userId, eventId, { mode });
 }
 
 /**

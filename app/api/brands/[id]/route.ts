@@ -1,5 +1,5 @@
 import { NextRequest } from 'next/server';
-import { apiHandler, apiSuccess, apiError, parseBodyWithSchema } from '@/app/lib/api-helpers';
+import { apiHandler, apiSuccess, apiSuccessCached, apiError, parseBodyWithSchema } from '@/app/lib/api-helpers';
 import { updateBrandSchema } from '@/app/lib/validation-schemas';
 import { brandService } from '@/app/lib/services/brand.service';
 
@@ -14,7 +14,7 @@ export const GET = apiHandler(async (_req, { params }) => {
 
   const brand = await brandService.getById(params.id);
 
-  return apiSuccess(brand);
+  return apiSuccessCached(brand);
 });
 
 /**

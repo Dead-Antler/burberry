@@ -20,8 +20,13 @@ import type {
   AddGroupMemberRequest,
   UpdateGroupMemberRequest,
   Event,
+  EventWithMatches,
   CreateEventRequest,
   UpdateEventRequest,
+  EventJoin,
+  EventJoinWithUser,
+  JoinEventRequest,
+  EventPredictionStats,
   Match,
   MatchWithParticipants,
   CreateMatchRequest,
@@ -43,6 +48,7 @@ import type {
   ScoreEventResponse,
   UserScore,
   Leaderboard,
+  OverallLeaderboard,
   User,
   CreateUserRequest,
   UpdateUserRequest,
@@ -313,8 +319,16 @@ class ApiClient {
 
   async getEvent(
     id: string,
+    params: { includeMatches: true; includeCustomPredictions?: boolean }
+  ): Promise<EventWithMatches>;
+  async getEvent(
+    id: string,
     params?: { includeMatches?: boolean; includeCustomPredictions?: boolean }
-  ): Promise<Event> {
+  ): Promise<Event>;
+  async getEvent(
+    id: string,
+    params?: { includeMatches?: boolean; includeCustomPredictions?: boolean }
+  ): Promise<Event | EventWithMatches> {
     const query = new URLSearchParams();
     if (params?.includeMatches) query.set('includeMatches', 'true');
     if (params?.includeCustomPredictions) query.set('includeCustomPredictions', 'true');
@@ -340,6 +354,29 @@ class ApiClient {
     return this.request(`/api/events/${id}`, {
       method: 'DELETE',
     });
+  }
+
+  async joinEvent(eventId: string, data: JoinEventRequest): Promise<EventJoin> {
+    return this.request(`/api/events/${eventId}/join`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async getEventJoinStatus(eventId: string): Promise<EventJoin> {
+    return this.request(`/api/events/${eventId}/join`);
+  }
+
+  async getEventParticipants(eventId: string): Promise<EventJoinWithUser[]> {
+    return this.request<EventJoinWithUser[]>(
+      `/api/events/${eventId}/participants`
+    );
+  }
+
+  async getEventPredictionStats(eventId: string): Promise<EventPredictionStats> {
+    return this.request<EventPredictionStats>(
+      `/api/events/${eventId}/prediction-stats`
+    );
   }
 
   // ============================================================================
@@ -562,6 +599,28 @@ class ApiClient {
 
   async getUserScore(eventId: string, userId: string): Promise<UserScore | null> {
     return this.request(`/api/events/${eventId}/score?userId=${userId}`);
+  }
+
+  async getOverallLeaderboard(): Promise<OverallLeaderboard> {
+    return this.request('/api/leaderboard/overall');
+  }
+
+  async rescoreAllEvents(): Promise<{
+    message: string;
+    totalEvents: number;
+    successCount: number;
+    failCount: number;
+    results: Array<{
+      eventId: string;
+      eventName: string;
+      success: boolean;
+      participantCount?: number;
+      error?: string;
+    }>;
+  }> {
+    return this.request('/api/admin/rescore-events', {
+      method: 'POST',
+    });
   }
 
   // ============================================================================

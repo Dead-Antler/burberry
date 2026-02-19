@@ -1,6 +1,7 @@
 import { NextRequest } from 'next/server';
-import { apiHandler, apiSuccess, apiError, parseBody } from '@/app/lib/api-helpers';
+import { apiHandler, apiSuccess, apiError, parseBodyWithSchema } from '@/app/lib/api-helpers';
 import { customPredictionService } from '@/app/lib/services/prediction.service';
+import { updateUserCustomPredictionSchema } from '@/app/lib/validation-schemas';
 
 /**
  * GET /api/predictions/custom/:id
@@ -25,13 +26,7 @@ export const PATCH = apiHandler(async (req: NextRequest, { params, session }) =>
     throw apiError('Prediction ID is required');
   }
 
-  const body = await parseBody<{
-    predictionTime?: string | Date | null;
-    predictionCount?: number | null;
-    predictionWrestlerId?: string | null;
-    predictionBoolean?: boolean | null;
-    predictionText?: string | null;
-  }>(req);
+  const body = await parseBodyWithSchema(req, updateUserCustomPredictionSchema);
 
   const prediction = await customPredictionService.update(params.id, session.user.id, body);
 

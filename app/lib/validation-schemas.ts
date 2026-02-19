@@ -22,7 +22,8 @@ export const timestampSchema = z
   ])
   .transform((val) => (typeof val === 'string' ? new Date(val) : val));
 
-export const eventStatusSchema = z.enum(['upcoming', 'open', 'locked', 'completed']);
+export const eventStatusSchema = z.enum(['pending', 'open', 'locked', 'completed']);
+export const eventJoinModeSchema = z.enum(['normal', 'contrarian']);
 export const matchOutcomeSchema = z.enum(['winner', 'draw', 'no_contest']);
 export const participantTypeSchema = z.enum(['wrestler', 'group']);
 export const predictionTypeSchema = z.enum(['time', 'count', 'wrestler', 'boolean', 'text']);
@@ -117,6 +118,7 @@ export const updateEventSchema = z.object({
   brandId: z.string().min(1).optional(),
   eventDate: timestampSchema.optional(),
   status: eventStatusSchema.optional(),
+  hidePredictors: z.boolean().optional(),
 });
 
 export const eventQuerySchema = z.object({
@@ -150,12 +152,16 @@ export const createMatchSchema = z.object({
   matchType: z.string().min(1).max(100),
   matchOrder: z.number().int().positive(),
   participants: z.array(matchParticipantSchema).optional().default([]),
+  isLocked: z.boolean().optional(),
+  predictionDeadline: timestampSchema.nullable().optional(),
 });
 
 export const updateMatchSchema = z.object({
   matchType: z.string().min(1).max(100).optional(),
   matchOrder: z.number().int().positive().optional(),
   unknownParticipants: z.boolean().optional(),
+  isLocked: z.boolean().optional(),
+  predictionDeadline: timestampSchema.nullable().optional(),
   outcome: matchOutcomeSchema.nullable().optional(),
   winningSide: z.number().int().positive().nullable().optional(),
   winnerParticipantId: z.string().min(1).nullable().optional(),
@@ -295,7 +301,7 @@ export const userCustomPredictionQuerySchema = z.object({
 });
 
 // ============================================================================
-// Contrarian Mode Schemas
+// Contrarian Mode Schemas (Deprecated - replaced by Event Join)
 // ============================================================================
 
 export const createContrarianSchema = z.object({
@@ -305,6 +311,35 @@ export const createContrarianSchema = z.object({
 
 export const updateContrarianSchema = z.object({
   isContrarian: z.boolean(),
+});
+
+// ============================================================================
+// Event Join Schemas
+// ============================================================================
+
+export const joinEventSchema = z.object({
+  mode: eventJoinModeSchema,
+});
+
+export const updateEventJoinSchema = z.object({
+  mode: eventJoinModeSchema.optional(),
+  didWinContrarian: z.boolean().nullable().optional(),
+});
+
+export const eventJoinQuerySchema = z.object({
+  eventId: z.string().optional(),
+  userId: z.string().optional(),
+  mode: eventJoinModeSchema.optional(),
+});
+
+// ============================================================================
+// Settings Schemas
+// ============================================================================
+
+export const setSettingSchema = z.object({
+  key: z.string().min(1, 'Setting key is required').max(200),
+  type: z.enum(['string', 'boolean', 'number', 'json']),
+  value: z.unknown().refine((val) => val !== undefined, { message: 'value is required' }),
 });
 
 // ============================================================================

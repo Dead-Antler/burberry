@@ -64,6 +64,13 @@
       "when": 1770163200000,
       "tag": "0008_settings_table",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "6",
+      "when": 1738958400000,
+      "tag": "0009_prediction_ui_schema_updates",
+      "breakpoints": true
     }
   ]
 }

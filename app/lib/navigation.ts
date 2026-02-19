@@ -9,7 +9,6 @@ import {
   UserCog,
   Swords,
   Crown,
-  Target,
 } from 'lucide-react'
 
 export interface NavSubItem {
@@ -35,11 +34,6 @@ export const NAV_ITEMS: NavItem[] = [
     title: 'Events',
     url: '/events',
     icon: Calendar,
-  },
-  {
-    title: 'Predictions',
-    url: '/predictions',
-    icon: Target,
   },
   {
     title: 'Leaderboard',

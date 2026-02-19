@@ -2,7 +2,7 @@ import { db } from '../app/lib/db';
 import {
   userCustomPredictions,
   matchPredictions,
-  userEventContrarian,
+  userEventJoin,
   eventCustomPredictions,
   matchParticipants,
   matches,
@@ -22,7 +22,7 @@ async function reset() {
   const tables = [
     { name: 'userCustomPredictions', table: userCustomPredictions },
     { name: 'matchPredictions', table: matchPredictions },
-    { name: 'userEventContrarian', table: userEventContrarian },
+    { name: 'userEventJoin', table: userEventJoin },
     { name: 'eventCustomPredictions', table: eventCustomPredictions },
     { name: 'matchParticipants', table: matchParticipants },
     { name: 'matches', table: matches },

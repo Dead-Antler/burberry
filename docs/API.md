@@ -124,6 +124,18 @@ GET /api/wrestlers?brandId=xxx&isActive=true
 - `brandId` (optional): Filter by brand
 - `isActive` (optional): Filter by active status (`true`/`false`)
 
+### List All Wrestlers (No Pagination)
+```
+GET /api/wrestlers/all?brandId=xxx&isActive=true&includeGroups=true
+```
+
+Convenience endpoint that returns all wrestlers without pagination (limit: 1000). Useful for combobox/selection UI components.
+
+**Query Parameters:**
+- `brandId` (optional): Filter by brand
+- `isActive` (optional): Filter by active status (`true`/`false`)
+- `includeGroups` (optional): Include group memberships
+
 ### Get Wrestler
 ```
 GET /api/wrestlers/:id?includeHistory=true
@@ -180,6 +192,18 @@ GET /api/wrestlers/:id/names
 ```
 GET /api/groups?brandId=xxx&isActive=true&includeMembers=true
 ```
+
+**Query Parameters:**
+- `brandId` (optional): Filter by brand
+- `isActive` (optional): Filter by active status
+- `includeMembers` (optional): Include current members with wrestler data
+
+### List All Groups (No Pagination)
+```
+GET /api/groups/all?brandId=xxx&isActive=true&includeMembers=true
+```
+
+Convenience endpoint that returns all groups without pagination (limit: 1000). Useful for combobox/selection UI components.
 
 **Query Parameters:**
 - `brandId` (optional): Filter by brand
@@ -346,6 +370,195 @@ DELETE /api/events/:id
 
 **Note:** Hard delete. Cascades to matches and predictions.
 
+### Join Event
+```
+POST /api/events/:id/join
+Content-Type: application/json
+
+{
+  "mode": "normal"
+}
+```
+
+**Modes:**
+- `normal` - Standard scoring (get predictions right)
+- `contrarian` - Inverse scoring (try to get ALL predictions wrong)
+
+**Rules:**
+- Event must be `open`
+- User can only join once per event
+- Cannot change mode after joining
+
+**Response:**
+```json
+{
+  "id": "usereventjoin_...",
+  "userId": "user_...",
+  "eventId": "event_...",
+  "mode": "normal",
+  "didWinContrarian": null,
+  "createdAt": "2024-01-01T00:00:00.000Z",
+  "updatedAt": "2024-01-01T00:00:00.000Z"
+}
+```
+
+### Get Join Status
+```
+GET /api/events/:id/join
+```
+
+Returns user's join record for the event, or 404 if not joined.
+
+### Get Event Participants
+```
+GET /api/events/:id/participants
+```
+
+Returns list of all users who have joined this event with their mode.
+
+**Response:**
+```json
+[
+  {
+    "id": "usereventjoin_...",
+    "userId": "user_...",
+    "eventId": "event_...",
+    "mode": "contrarian",
+    "didWinContrarian": null,
+    "createdAt": "2024-01-01T00:00:00.000Z",
+    "updatedAt": "2024-01-01T00:00:00.000Z",
+    "user": {
+      "id": "user_...",
+      "name": "John Doe",
+      "email": "john@example.com",
+      "isAdmin": false
+    }
+  }
+]
+```
+
+### Get Prediction Statistics
+```
+GET /api/events/:id/prediction-stats
+```
+
+Returns real-time aggregated prediction statistics for all matches and custom predictions in the event.
+
+**Response:**
+```json
+{
+  "eventId": "event_...",
+  "matches": [
+    {
+      "matchId": "match_...",
+      "totalPredictions": 15,
+      "distribution": [
+        {
+          "side": 1,
+          "participantId": null,
+          "count": 10,
+          "percentage": 67,
+          "predictors": ["Alice", "Bob"]
+        },
+        {
+          "side": 2,
+          "participantId": null,
+          "count": 5,
+          "percentage": 33,
+          "predictors": ["Charlie"]
+        }
+      ]
+    }
+  ],
+  "customPredictions": [
+    {
+      "eventCustomPredictionId": "eventcustompred_...",
+      "totalPredictions": 12,
+      "distribution": [
+        {
+          "value": "2024-04-07T22:15:00.000Z",
+          "count": 8,
+          "percentage": 67,
+          "predictors": ["Alice", "Bob"]
+        }
+      ]
+    }
+  ]
+}
+```
+
+**Note:** `predictors` array is only included if `event.hidePredictors` is `false`.
+
+### Real-Time Updates (SSE)
+```
+GET /api/events/:id/live
+```
+
+Server-Sent Events (SSE) endpoint for real-time push updates during live events.
+
+**Event Types:**
+- `connected` - Initial connection established
+- `ping` - Keep-alive (every 30 seconds)
+- `update` - Data change notification
+
+**Update Types:**
+```javascript
+// Event status changed
+{
+  "type": "event-updated",
+  "event": { /* event object */ }
+}
+
+// Matches added/removed/reordered/locked/results entered
+{
+  "type": "matches-changed",
+  "count": 10
+}
+
+// New participants joined
+{
+  "type": "participants-changed",
+  "count": 15
+}
+
+// Predictions created/updated
+{
+  "type": "predictions-changed"
+}
+
+// Connection timeout (after 1 hour)
+{
+  "type": "timeout",
+  "message": "Connection closed due to timeout"
+}
+```
+
+**Usage Example:**
+```javascript
+const eventSource = new EventSource('/api/events/event_123/live');
+
+eventSource.addEventListener('update', (e) => {
+  const data = JSON.parse(e.data);
+  if (data.type === 'predictions-changed') {
+    // Refresh prediction stats
+  }
+});
+
+eventSource.addEventListener('ping', () => {
+  // Keep-alive received
+});
+
+eventSource.onerror = (error) => {
+  eventSource.close();
+  // Reconnect after delay
+};
+```
+
+**Connection Limits:**
+- Maximum duration: 1 hour (then auto-closes)
+- Polling interval: 2 seconds
+- Keep-alive: 30 seconds
+
 ---
 
 ## Matches
@@ -465,6 +678,25 @@ Content-Type: application/json
 ### Remove Participant `[ADMIN ONLY]`
 ```
 DELETE /api/matches/:id/participants/:participantId
+```
+
+### Reorder Matches `[ADMIN ONLY]`
+```
+POST /api/events/:id/matches/reorder
+Content-Type: application/json
+
+{
+  "matchIds": ["match_1", "match_3", "match_2"]
+}
+```
+
+Reorders matches for an event. The array order determines the new `matchOrder` values (1, 2, 3...).
+
+**Response:**
+```json
+{
+  "success": true
+}
 ```
 
 ---
@@ -743,6 +975,69 @@ GET /api/events/:id/score?userId=xxx
 
 ---
 
+## Dashboard & Leaderboards
+
+### Get Dashboard Stats
+```
+GET /api/dashboard/stats
+```
+
+Returns statistics for the current user's dashboard.
+
+**Response:**
+```json
+{
+  "openEvents": 3,
+  "userPredictions": 45,
+  "accuracy": 73,
+  "rank": 5,
+  "totalUsers": 20
+}
+```
+
+**Fields:**
+- `openEvents` - Number of events currently open for predictions
+- `userPredictions` - Total predictions made by user (all time)
+- `accuracy` - Percentage of correct predictions (scored only)
+- `rank` - User's rank based on total correct predictions (null if no scored predictions)
+- `totalUsers` - Total number of users in the system
+
+### Get Overall Leaderboard
+```
+GET /api/leaderboard/overall
+```
+
+Returns cumulative leaderboard across ALL completed events.
+
+**Response:**
+```json
+[
+  {
+    "userId": "user_...",
+    "user": {
+      "name": "John Doe",
+      "email": "john@example.com"
+    },
+    "totalPoints": 150,
+    "eventsParticipated": 5,
+    "matchPredictions": {
+      "total": 50,
+      "correct": 38
+    },
+    "customPredictions": {
+      "total": 25,
+      "correct": 18
+    },
+    "contrarianWins": 1,
+    "firstPlaceFinishes": 2
+  }
+]
+```
+
+**Sorting:** Descending by `totalPoints`
+
+---
+
 ## Event Workflow Example
 
 ### 1. Create Event (Admin)
@@ -964,6 +1259,49 @@ DELETE /api/users/:id
 ```
 
 **Note:** Cannot delete yourself (returns 403).
+
+---
+
+## Admin Tools `[ADMIN ONLY]`
+
+Administrative endpoints for system maintenance.
+
+### Rescore All Events
+```
+POST /api/admin/rescore-events
+```
+
+Recalculates leaderboards for all completed events. Useful after fixing bugs in scoring logic or when data has been manually corrected.
+
+**Response:**
+```json
+{
+  "message": "Rescored 5 events successfully",
+  "totalEvents": 5,
+  "successCount": 5,
+  "failCount": 0,
+  "results": [
+    {
+      "eventId": "event_...",
+      "eventName": "WrestleMania 40",
+      "success": true,
+      "participantCount": 15
+    },
+    {
+      "eventId": "event_...",
+      "eventName": "Royal Rumble",
+      "success": true,
+      "participantCount": 12
+    }
+  ]
+}
+```
+
+**Use Cases:**
+- After fixing a bug in the scoring algorithm
+- After manually correcting match results
+- After updating custom prediction answers
+- To refresh stale leaderboard data
 
 ---
 

@@ -176,7 +176,8 @@ export type UpdateGroupMemberRequest = {
 // Event Types
 // ============================================================================
 
-export type EventStatus = 'upcoming' | 'open' | 'locked' | 'completed';
+export type EventStatus = 'pending' | 'open' | 'locked' | 'completed';
+export type EventJoinMode = 'normal' | 'contrarian';
 
 export type Event = {
   id: string;
@@ -184,6 +185,7 @@ export type Event = {
   brandId: string;
   eventDate: Date | string;
   status: EventStatus;
+  hidePredictors: boolean;
   createdAt: Date | string;
   updatedAt: Date | string;
 };
@@ -222,6 +224,8 @@ export type Match = {
   matchType: string;
   matchOrder: number;
   unknownParticipants: boolean;
+  isLocked: boolean;
+  predictionDeadline: Date | string | null;
   outcome: MatchOutcome | null;
   winningSide: number | null;
   winnerParticipantId: string | null;
@@ -254,7 +258,8 @@ export type CreateMatchRequest = {
   matchType: string;
   matchOrder: number;
   unknownParticipants?: boolean;
-  participants: Array<{
+  isLocked?: boolean;
+  participants?: Array<{
     side: number | null;
     participantType: 'wrestler' | 'group';
     participantId: string;
@@ -267,6 +272,7 @@ export type UpdateMatchRequest = {
   matchType?: string;
   matchOrder?: number;
   unknownParticipants?: boolean;
+  isLocked?: boolean;
   outcome?: MatchOutcome | null;
   winningSide?: number | null;
   winnerParticipantId?: string | null;
@@ -394,9 +400,10 @@ export type UpdateUserCustomPredictionRequest = {
 };
 
 // ============================================================================
-// Contrarian Mode Types
+// Contrarian Mode Types (Legacy - use EventJoin instead)
 // ============================================================================
 
+// Kept for backward compatibility with existing API endpoints
 export type UserEventContrarian = {
   id: string;
   userId: string;
@@ -425,6 +432,10 @@ export type ScoreEventResponse = {
 
 export type UserScore = {
   userId: string;
+  user?: {
+    name: string | null;
+    email: string;
+  };
   matchPredictions: {
     total: number;
     correct: number;
@@ -439,6 +450,28 @@ export type UserScore = {
 };
 
 export type Leaderboard = UserScore[];
+
+export type OverallUserScore = {
+  userId: string;
+  user?: {
+    name: string | null;
+    email: string;
+  };
+  totalPoints: number;
+  eventsParticipated: number;
+  matchPredictions: {
+    total: number;
+    correct: number;
+  };
+  customPredictions: {
+    total: number;
+    correct: number;
+  };
+  contrarianWins: number;
+  firstPlaceFinishes: number;
+};
+
+export type OverallLeaderboard = OverallUserScore[];
 
 // ============================================================================
 // Query Parameter Types
@@ -487,3 +520,95 @@ export type ContrarianQueryParams = {
 export type ScoreQueryParams = {
   userId?: string;
 };
+
+// ============================================================================
+// Event Join Types
+// ============================================================================
+
+export type EventJoin = {
+  id: string;
+  userId: string;
+  eventId: string;
+  mode: EventJoinMode;
+  didWinContrarian: boolean | null;
+  createdAt: Date | string;
+  updatedAt: Date | string;
+};
+
+export type EventJoinWithUser = EventJoin & {
+  user: User;
+};
+
+export type JoinEventRequest = {
+  mode: EventJoinMode;
+};
+
+// ============================================================================
+// Prediction Stats Types (for real-time updates)
+// ============================================================================
+
+export type PredictionDistribution = {
+  side: number | null;
+  participantId: string | null;
+  percentage: number;
+  count: number;
+  predictors: string[] | null; // null if hidePredictors is true
+};
+
+export type MatchPredictionStats = {
+  matchId: string;
+  totalPredictions: number;
+  distribution: PredictionDistribution[];
+};
+
+export type CustomPredictionStats = {
+  eventCustomPredictionId: string;
+  totalPredictions: number;
+  distribution: Array<{
+    value: string | number | boolean;
+    count: number;
+    percentage: number;
+    predictors: string[] | null;
+  }>;
+};
+
+export type EventPredictionStats = {
+  eventId: string;
+  matches: MatchPredictionStats[];
+  customPredictions: CustomPredictionStats[];
+};
+
+// ============================================================================
+// Wrestler Prediction Cooldown Types
+// ============================================================================
+
+export type WrestlerPredictionCooldown = {
+  id: string;
+  userId: string;
+  wrestlerId: string;
+  brandId: string;
+  eventCustomPredictionId: string;
+  lastPredictedAt: Date | string;
+  createdAt: Date | string;
+};
+
+export type WrestlerCooldownStatus = {
+  wrestlerId: string;
+  isOnCooldown: boolean;
+  availableAt: Date | string | null;
+};
+
+// ============================================================================
+// Helper Functions
+// ============================================================================
+
+/**
+ * Get the display name for a match participant.
+ * Wrestlers have `currentName`, groups have `name`.
+ */
+export function getParticipantDisplayName(participant: Wrestler | Group): string {
+  if ('currentName' in participant) {
+    return participant.currentName;
+  }
+  return participant.name;
+}

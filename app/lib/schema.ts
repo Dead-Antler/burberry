@@ -147,6 +147,7 @@ export const events = sqliteTable('events', {
   brandId: text('brandId').notNull().references(() => brands.id),
   eventDate: integer('eventDate', { mode: 'timestamp_ms' }).notNull(),
   status: text('status').notNull().default('open'),
+  hidePredictors: integer('hidePredictors', { mode: 'boolean' }).notNull().default(false),
   createdAt: integer('createdAt', { mode: 'timestamp_ms' }).$defaultFn(() => new Date()),
   updatedAt: integer('updatedAt', { mode: 'timestamp_ms' }).$defaultFn(() => new Date()),
 }, (table) => ({
@@ -161,6 +162,8 @@ export const matches = sqliteTable('matches', {
   matchType: text('matchType').notNull(),
   matchOrder: integer('matchOrder').notNull(),
   unknownParticipants: integer('unknownParticipants', { mode: 'boolean' }).notNull().default(false),
+  isLocked: integer('isLocked', { mode: 'boolean' }).notNull().default(false),
+  predictionDeadline: integer('predictionDeadline', { mode: 'timestamp_ms' }),
   outcome: text('outcome'),
   winningSide: integer('winningSide'),
   winnerParticipantId: text('winnerParticipantId'),
@@ -245,22 +248,37 @@ export const userCustomPredictions = sqliteTable('userCustomPredictions', {
 }, (table) => ({
   userIdx: index('userCustomPredictions_userId_idx').on(table.userId),
   eventPredictionIdx: index('userCustomPredictions_eventCustomPredictionId_idx').on(table.eventCustomPredictionId),
-  userEventPredictionUnique: unique('userCustomPredictions_userId_eventCustomPredictionId')
-    .on(table.userId, table.eventCustomPredictionId),
 }));
 
-export const userEventContrarian = sqliteTable('userEventContrarian', {
+export const userEventJoin = sqliteTable('userEventJoin', {
   id: text('id').primaryKey(),
   userId: text('userId').notNull().references(() => users.id),
   eventId: text('eventId').notNull().references(() => events.id),
-  isContrarian: integer('isContrarian', { mode: 'boolean' }).notNull().default(false),
+  mode: text('mode').notNull().default('normal'), // 'normal' | 'contrarian'
   didWinContrarian: integer('didWinContrarian', { mode: 'boolean' }),
   createdAt: integer('createdAt', { mode: 'timestamp_ms' }).$defaultFn(() => new Date()),
   updatedAt: integer('updatedAt', { mode: 'timestamp_ms' }).$defaultFn(() => new Date()),
 }, (table) => ({
-  userIdx: index('userEventContrarian_userId_idx').on(table.userId),
-  eventIdx: index('userEventContrarian_eventId_idx').on(table.eventId),
-  userEventUnique: unique('userEventContrarian_userId_eventId').on(table.userId, table.eventId),
+  userIdx: index('userEventJoin_userId_idx').on(table.userId),
+  eventIdx: index('userEventJoin_eventId_idx').on(table.eventId),
+  // UNIQUE constraint automatically creates composite index for (userId, eventId) queries
+  userEventUnique: unique('userEventJoin_userId_eventId').on(table.userId, table.eventId),
+}));
+
+export const wrestlerPredictionCooldowns = sqliteTable('wrestlerPredictionCooldowns', {
+  id: text('id').primaryKey(),
+  userId: text('userId').notNull().references(() => users.id),
+  wrestlerId: text('wrestlerId').notNull().references(() => wrestlers.id),
+  brandId: text('brandId').notNull().references(() => brands.id),
+  eventCustomPredictionId: text('eventCustomPredictionId').notNull().references(() => eventCustomPredictions.id),
+  lastPredictedAt: integer('lastPredictedAt', { mode: 'timestamp_ms' }).notNull(),
+  createdAt: integer('createdAt', { mode: 'timestamp_ms' }).$defaultFn(() => new Date()),
+}, (table) => ({
+  userIdx: index('wrestlerPredictionCooldowns_userId_idx').on(table.userId),
+  wrestlerIdx: index('wrestlerPredictionCooldowns_wrestlerId_idx').on(table.wrestlerId),
+  brandIdx: index('wrestlerPredictionCooldowns_brandId_idx').on(table.brandId),
+  userWrestlerBrandUnique: unique('wrestlerPredictionCooldowns_userId_wrestlerId_brandId')
+    .on(table.userId, table.wrestlerId, table.brandId),
 }));
 
 // ============================================================================

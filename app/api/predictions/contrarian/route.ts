@@ -1,6 +1,7 @@
 import { NextRequest } from 'next/server';
-import { apiHandler, apiSuccess, parseBody, validateRequired } from '@/app/lib/api-helpers';
+import { apiHandler, apiSuccess, parseBodyWithSchema } from '@/app/lib/api-helpers';
 import { contrarianService } from '@/app/lib/services/prediction.service';
+import { createContrarianSchema } from '@/app/lib/validation-schemas';
 
 /**
  * GET /api/predictions/contrarian
@@ -22,12 +23,7 @@ export const GET = apiHandler(async (req: NextRequest, { session }) => {
  * Enable or update contrarian mode for an event
  */
 export const POST = apiHandler(async (req: NextRequest, { session }) => {
-  const body = await parseBody<{
-    eventId: string;
-    isContrarian: boolean;
-  }>(req);
-
-  validateRequired(body, ['eventId', 'isContrarian']);
+  const body = await parseBodyWithSchema(req, createContrarianSchema);
 
   const { record, isNew } = await contrarianService.setStatus(session.user.id, body);
 

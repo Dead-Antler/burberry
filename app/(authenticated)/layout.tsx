@@ -26,7 +26,7 @@ export default async function AuthenticatedLayout({
   return (
     <SidebarProvider>
       <AppSidebar user={user} />
-      <SidebarInset>
+      <SidebarInset id="main-content">
         <ErrorBoundary>{children}</ErrorBoundary>
       </SidebarInset>
     </SidebarProvider>

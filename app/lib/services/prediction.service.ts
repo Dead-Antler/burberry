@@ -11,7 +11,7 @@ import {
   userCustomPredictions,
   eventCustomPredictions,
   customPredictionTemplates,
-  userEventContrarian,
+  userEventJoin,
   wrestlers,
 } from '../schema';
 import { eq, and, inArray } from 'drizzle-orm';
@@ -164,10 +164,15 @@ export const matchPredictionService = {
         throw apiError('Match not found', 404);
       }
 
-      // Check event status WITHIN transaction to prevent TOCTOU
+      // Check event and match status WITHIN transaction to prevent TOCTOU
       const [event] = await tx.select().from(events).where(eq(events.id, match.eventId));
-      if (!event || event.status !== 'open') {
-        throw apiError('Cannot modify predictions for a locked or completed event', 400);
+      if (!event || event.status === 'completed') {
+        throw apiError('Cannot modify predictions for a completed event', 400);
+      }
+
+      // Allow predictions on unlocked matches even during locked events (surprise matches)
+      if (match.isLocked) {
+        throw apiError('Cannot modify predictions for a locked match', 400);
       }
 
       const { createdAt, updatedAt } = timestamps();
@@ -398,8 +403,8 @@ export const customPredictionService = {
         .from(events)
         .where(eq(events.id, eventPrediction.eventCustomPrediction.eventId));
 
-      if (!event || event.status !== 'open') {
-        throw apiError('Cannot modify predictions for a locked or completed event', 400);
+      if (!event || event.status === 'completed') {
+        throw apiError('Cannot modify predictions for a completed event', 400);
       }
 
       // Check if prediction already exists
@@ -551,13 +556,13 @@ export const contrarianService = {
    * Get user's contrarian records with optional filtering
    */
   async list(userId: string, eventId?: string) {
-    const conditions = [eq(userEventContrarian.userId, userId)];
+    const conditions = [eq(userEventJoin.userId, userId)];
 
     if (eventId) {
-      conditions.push(eq(userEventContrarian.eventId, eventId));
+      conditions.push(eq(userEventJoin.eventId, eventId));
     }
 
-    return db.select().from(userEventContrarian).where(and(...conditions));
+    return db.select().from(userEventJoin).where(and(...conditions));
   },
 
   /**
@@ -566,8 +571,8 @@ export const contrarianService = {
   async getForEvent(userId: string, eventId: string) {
     const [record] = await db
       .select()
-      .from(userEventContrarian)
-      .where(and(eq(userEventContrarian.userId, userId), eq(userEventContrarian.eventId, eventId)));
+      .from(userEventJoin)
+      .where(and(eq(userEventJoin.userId, userId), eq(userEventJoin.eventId, eventId)));
 
     if (!record) {
       return { isContrarian: false, didWinContrarian: null };
@@ -581,72 +586,89 @@ export const contrarianService = {
    * @throws 404 if event not found
    * @throws 400 if event is not open or user has already made predictions
    */
-  async setStatus(userId: string, input: SetContrarianInput) {
-    // Verify event exists and is open
-    await requireEventOpen(input.eventId);
+  async setStatus(
+    userId: string,
+    input: SetContrarianInput
+  ): Promise<{ record: typeof userEventJoin.$inferSelect; isNew: boolean }> {
+    return withTransaction(async (tx) => {
+      // Verify event exists and is open (INSIDE transaction to prevent TOCTOU)
+      const [event] = await tx
+        .select()
+        .from(events)
+        .where(eq(events.id, input.eventId))
+        .limit(1);
 
-    // If enabling contrarian mode, verify user hasn't made any predictions yet
-    if (input.isContrarian) {
-      const eventMatches = await db
-        .select({ id: matches.id })
-        .from(matches)
-        .where(eq(matches.eventId, input.eventId));
+      if (!event) {
+        throw apiError('Event not found', 404);
+      }
 
-      const matchIds = eventMatches.map((m) => m.id);
+      if (event.status !== 'open') {
+        throw apiError('Event is not open', 400);
+      }
 
-      if (matchIds.length > 0) {
-        const existingPredictions = await db
-          .select({ id: matchPredictions.id })
-          .from(matchPredictions)
-          .where(
-            and(eq(matchPredictions.userId, userId), inArray(matchPredictions.matchId, matchIds))
-          );
+      // If enabling contrarian mode, verify user hasn't made any predictions yet
+      if (input.isContrarian) {
+        const eventMatches = await tx
+          .select({ id: matches.id })
+          .from(matches)
+          .where(eq(matches.eventId, input.eventId));
 
-        if (existingPredictions.length > 0) {
-          throw apiError('Cannot enable contrarian mode after making predictions', 400);
+        const matchIds = eventMatches.map((m) => m.id);
+
+        if (matchIds.length > 0) {
+          const existingPredictions = await tx
+            .select({ id: matchPredictions.id })
+            .from(matchPredictions)
+            .where(
+              and(eq(matchPredictions.userId, userId), inArray(matchPredictions.matchId, matchIds))
+            );
+
+          if (existingPredictions.length > 0) {
+            throw apiError('Cannot enable contrarian mode after making predictions', 400);
+          }
         }
       }
-    }
 
-    // Check if contrarian record already exists
-    const [existingRecord] = await db
-      .select()
-      .from(userEventContrarian)
-      .where(
-        and(eq(userEventContrarian.userId, userId), eq(userEventContrarian.eventId, input.eventId))
-      );
+      // Check if contrarian record already exists
+      const [existingRecord] = await tx
+        .select()
+        .from(userEventJoin)
+        .where(
+          and(eq(userEventJoin.userId, userId), eq(userEventJoin.eventId, input.eventId))
+        );
 
-    const { createdAt, updatedAt } = timestamps();
+      const { createdAt, updatedAt } = timestamps();
 
-    if (existingRecord) {
-      // Update existing record
-      const [updated] = await db
-        .update(userEventContrarian)
-        .set({
-          isContrarian: input.isContrarian,
-          ...updatedTimestamp(),
-        })
-        .where(eq(userEventContrarian.id, existingRecord.id))
-        .returning();
+      if (existingRecord) {
+        // Update existing record
+        const [updated] = await tx
+          .update(userEventJoin)
+          .set({
+            mode: input.isContrarian ? 'contrarian' : 'normal',
+            ...updatedTimestamp(),
+          })
+          .where(eq(userEventJoin.id, existingRecord.id))
+          .returning();
 
-      return { record: updated, isNew: false };
-    } else {
-      // Create new record
-      const [created] = await db
-        .insert(userEventContrarian)
-        .values({
-          id: generateId('contrarian'),
-          userId,
-          eventId: input.eventId,
-          isContrarian: input.isContrarian,
-          didWinContrarian: null,
-          createdAt,
-          updatedAt,
-        })
-        .returning();
+        return { record: updated, isNew: false };
+      } else {
+        // Create new record
+        const [created] = await tx
+          .insert(userEventJoin)
+          .values({
+            id: generateId('usereventjoin'),
+            userId,
+            eventId: input.eventId,
+            mode: input.isContrarian ? 'contrarian' : 'normal',
+            didWinContrarian: null,
+            createdAt,
+            updatedAt,
+          })
+          .returning();
 
-      return { record: created, isNew: true };
-    }
+        return { record: created, isNew: true };
+      }
+    });
   },
 
   /**
@@ -655,9 +677,9 @@ export const contrarianService = {
    */
   async delete(userId: string, eventId: string) {
     const [deletedRecord] = await db
-      .delete(userEventContrarian)
+      .delete(userEventJoin)
       .where(
-        and(eq(userEventContrarian.userId, userId), eq(userEventContrarian.eventId, eventId))
+        and(eq(userEventJoin.userId, userId), eq(userEventJoin.eventId, eventId))
       )
       .returning();
 

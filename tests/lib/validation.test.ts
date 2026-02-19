@@ -48,8 +48,8 @@ describe('Validation Schemas', () => {
     });
 
     test('should reject invalid statuses', () => {
-      expect(eventStatusSchema.safeParse('pending').success).toBe(false);
       expect(eventStatusSchema.safeParse('cancelled').success).toBe(false);
+      expect(eventStatusSchema.safeParse('active').success).toBe(false);
       expect(eventStatusSchema.safeParse('').success).toBe(false);
     });
   });
@@ -183,11 +183,11 @@ describe('Validation Schemas', () => {
       expect(result.success).toBe(true);
     });
 
-    test('should validate tag team participant', () => {
+    test('should validate group participant', () => {
       const result = matchParticipantSchema.safeParse({
         side: 2,
-        participantType: 'tag_team',
-        participantId: 'tagteam_456',
+        participantType: 'group',
+        participantId: 'group_456',
       });
       expect(result.success).toBe(true);
     });

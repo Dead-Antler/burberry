@@ -1,7 +1,7 @@
 "use client"
 
 import { useCallback, useEffect, useState } from "react"
-import { Save } from "lucide-react"
+import { Save, RefreshCw } from "lucide-react"
 import { SiteHeader } from "@/app/components/site-header"
 import { Button } from "@/components/ui/button"
 import { ReusablePredictionsEditor } from "@/app/components/settings/reusable-predictions-editor"
@@ -14,8 +14,10 @@ import { Label } from "@/components/ui/label"
 export default function SettingsPage() {
   const [isLoading, setIsLoading] = useState(true)
   const [isSaving, setIsSaving] = useState(false)
+  const [isRescoring, setIsRescoring] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [saveMessage, setSaveMessage] = useState<string | null>(null)
+  const [rescoreMessage, setRescoreMessage] = useState<string | null>(null)
 
   // Setting values
   const [reusablePredictions, setReusablePredictions] = useState<string[]>([])
@@ -106,6 +108,31 @@ export default function SettingsPage() {
     }
   }
 
+  const handleRescoreEvents = async () => {
+    if (!confirm("This will recalculate leaderboards for all completed events. Continue?")) {
+      return
+    }
+
+    setIsRescoring(true)
+    setError(null)
+    setRescoreMessage(null)
+
+    try {
+      const result = await apiClient.rescoreAllEvents()
+      setRescoreMessage(result.message)
+
+      // Clear success message after 5 seconds
+      setTimeout(() => setRescoreMessage(null), 5000)
+    } catch (err) {
+      const message = err instanceof ApiClientError
+        ? err.message
+        : "Failed to rescore events"
+      setError(message)
+    } finally {
+      setIsRescoring(false)
+    }
+  }
+
   return (
     <>
       <SiteHeader
@@ -144,6 +171,14 @@ export default function SettingsPage() {
           <Card className="border-green-500">
             <CardContent className="py-3">
               <p className="text-sm text-green-600">{saveMessage}</p>
+            </CardContent>
+          </Card>
+        )}
+
+        {rescoreMessage && (
+          <Card className="border-green-500">
+            <CardContent className="py-3">
+              <p className="text-sm text-green-600">{rescoreMessage}</p>
             </CardContent>
           </Card>
         )}
@@ -200,6 +235,29 @@ export default function SettingsPage() {
                 onChange={setReusablePredictions}
                 disabled={isSaving}
               />
+            </section>
+
+            {/* Admin Tools Section */}
+            <section>
+              <h2 className="text-lg font-semibold mb-4">Admin Tools</h2>
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-lg">Rescore Events</CardTitle>
+                  <CardDescription>
+                    Recalculate leaderboards for all completed events. Useful for fixing scoring issues or after data corrections.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <Button
+                    onClick={handleRescoreEvents}
+                    disabled={isRescoring}
+                    variant="outline"
+                  >
+                    <RefreshCw className={`mr-2 h-4 w-4 ${isRescoring ? 'animate-spin' : ''}`} />
+                    {isRescoring ? "Rescoring..." : "Rescore All Events"}
+                  </Button>
+                </CardContent>
+              </Card>
             </section>
           </div>
         )}
