@@ -12,24 +12,17 @@ import {
   WrestlerInput,
   TextInput,
   TimeInput,
-  formatDuration,
 } from "./custom-prediction-inputs"
-import type {
-  EventCustomPredictionWithTemplate,
-  UserCustomPrediction,
-  CustomPredictionStats,
-  PredictionType,
-  UpdateUserCustomPredictionRequest,
-  Wrestler,
+import { formatDuration } from "@/app/lib/time-utils"
+import {
+  PREDICTION_TYPE_LABELS,
+  type EventCustomPredictionWithTemplate,
+  type UserCustomPrediction,
+  type CustomPredictionStats,
+  type PredictionType,
+  type UpdateUserCustomPredictionRequest,
+  type Wrestler,
 } from "@/app/lib/api-types"
-
-const PREDICTION_TYPE_LABELS: Record<PredictionType, string> = {
-  boolean: "Yes/No",
-  count: "Count",
-  time: "Time",
-  wrestler: "Wrestler",
-  text: "Text",
-}
 
 interface CustomPredictionCardProps {
   prediction: EventCustomPredictionWithTemplate

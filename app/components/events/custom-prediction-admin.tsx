@@ -24,18 +24,10 @@ import { apiClient, ApiClientError } from "@/app/lib/api-client"
 import { AddPredictionDialog } from "./add-prediction-dialog"
 import { ApplyGroupDialog } from "./apply-group-dialog"
 import { AnswerSetting } from "./prediction-answer"
-import type {
-  EventCustomPredictionWithTemplate,
-  PredictionType,
+import {
+  PREDICTION_TYPE_LABELS,
+  type EventCustomPredictionWithTemplate,
 } from "@/app/lib/api-types"
-
-const PREDICTION_TYPE_LABELS: Record<PredictionType, string> = {
-  boolean: "Yes/No",
-  count: "Count",
-  time: "Time",
-  wrestler: "Wrestler",
-  text: "Text",
-}
 
 interface CustomPredictionAdminProps {
   eventId: string

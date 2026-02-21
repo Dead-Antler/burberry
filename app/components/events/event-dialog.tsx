@@ -168,7 +168,7 @@ export function EventDialog({
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 placeholder="e.g., WrestleMania 42"
-                maxLength={100}
+                maxLength={200}
                 disabled={isSubmitting}
               />
             </div>

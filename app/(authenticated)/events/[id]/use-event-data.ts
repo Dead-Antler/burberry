@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react"
+import { useCallback, useEffect, useRef, useState } from "react"
 import { useRouter } from "next/navigation"
 import { apiClient, ApiClientError } from "@/app/lib/api-client"
 import type {
@@ -141,11 +141,17 @@ export function useEventData(eventId: string): UseEventDataReturn {
   }, [fetchData])
 
   // SSE for real-time push updates
+  const reconnectAttempts = useRef(0)
+
   useEffect(() => {
     let eventSource: EventSource | null = null
 
     const connectSSE = () => {
       eventSource = new EventSource(`/api/events/${eventId}/live`)
+
+      eventSource.onopen = () => {
+        reconnectAttempts.current = 0
+      }
 
       eventSource.addEventListener('update', async (e) => {
         try {
@@ -198,7 +204,9 @@ export function useEventData(eventId: string): UseEventDataReturn {
       eventSource.onerror = (error) => {
         console.error('[SSE] Connection error:', error)
         eventSource?.close()
-        setTimeout(connectSSE, 5000)
+        const delay = Math.min(1000 * 2 ** reconnectAttempts.current, 16000)
+        reconnectAttempts.current++
+        setTimeout(connectSSE, delay)
       }
     }
 

@@ -1,5 +1,5 @@
 import { NextRequest } from 'next/server';
-import { apiHandler, apiSuccess, apiError, parseBodyWithSchema } from '@/app/lib/api-helpers';
+import { apiHandler, apiSuccess, apiSuccessCached, apiError, parseBodyWithSchema } from '@/app/lib/api-helpers';
 import { updateWrestlerSchema } from '@/app/lib/validation-schemas';
 import { wrestlerService } from '@/app/lib/services/wrestler.service';
 
@@ -19,7 +19,7 @@ export const GET = apiHandler(async (req: NextRequest, { params }) => {
 
   const wrestler = await wrestlerService.getById(params.id, { includeHistory });
 
-  return apiSuccess(wrestler);
+  return apiSuccessCached(wrestler);
 });
 
 /**

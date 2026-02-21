@@ -351,6 +351,14 @@ export type UpdateMatchPredictionRequest = {
 
 export type PredictionType = 'time' | 'count' | 'wrestler' | 'boolean' | 'text';
 
+export const PREDICTION_TYPE_LABELS: Record<PredictionType, string> = {
+  boolean: "Yes/No",
+  count: "Count",
+  time: "Time",
+  wrestler: "Wrestler",
+  text: "Text",
+};
+
 export type ScoringMode = 'exact' | 'closest_under';
 
 export type CustomPredictionTemplate = {

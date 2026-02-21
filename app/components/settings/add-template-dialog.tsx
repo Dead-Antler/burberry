@@ -20,15 +20,7 @@ import {
 } from "@/components/ui/select"
 import { Skeleton } from "@/components/ui/skeleton"
 import { apiClient, ApiClientError } from "@/app/lib/api-client"
-import type { CustomPredictionTemplate, PredictionType } from "@/app/lib/api-types"
-
-const PREDICTION_TYPE_LABELS: Record<PredictionType, string> = {
-  boolean: "Yes/No",
-  count: "Count",
-  time: "Time",
-  wrestler: "Wrestler",
-  text: "Text",
-}
+import { PREDICTION_TYPE_LABELS, type CustomPredictionTemplate } from "@/app/lib/api-types"
 
 interface AddTemplateDialogProps {
   open: boolean

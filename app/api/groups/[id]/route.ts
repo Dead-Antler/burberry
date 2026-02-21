@@ -1,5 +1,5 @@
 import { NextRequest } from 'next/server';
-import { apiHandler, apiSuccess, apiError, parseBodyWithSchema } from '@/app/lib/api-helpers';
+import { apiHandler, apiSuccess, apiSuccessCached, apiError, parseBodyWithSchema } from '@/app/lib/api-helpers';
 import { updateGroupSchema } from '@/app/lib/validation-schemas';
 import { groupService } from '@/app/lib/services/group.service';
 
@@ -19,7 +19,7 @@ export const GET = apiHandler(async (req: NextRequest, { params }) => {
 
   const group = await groupService.getById(params.id, { includeMembers });
 
-  return apiSuccess(group);
+  return apiSuccessCached(group);
 });
 
 /**

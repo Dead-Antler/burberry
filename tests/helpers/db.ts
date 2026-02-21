@@ -50,6 +50,7 @@ export async function setupTestDb(): Promise<LibSQLDatabase> {
       emailVerified INTEGER NOT NULL DEFAULT 0,
       image TEXT,
       role TEXT DEFAULT 'user',
+      theme TEXT DEFAULT 'neutral',
       banned INTEGER DEFAULT 0,
       banReason TEXT,
       banExpires INTEGER,
@@ -229,6 +230,8 @@ export async function setupTestDb(): Promise<LibSQLDatabase> {
       name TEXT NOT NULL,
       description TEXT,
       predictionType TEXT NOT NULL,
+      scoringMode TEXT NOT NULL DEFAULT 'exact',
+      cooldownDays INTEGER,
       createdAt INTEGER,
       updatedAt INTEGER
     )
@@ -262,6 +265,7 @@ export async function setupTestDb(): Promise<LibSQLDatabase> {
       predictionBoolean INTEGER,
       predictionText TEXT,
       isCorrect INTEGER,
+      pointsEarned INTEGER,
       createdAt INTEGER,
       updatedAt INTEGER,
       UNIQUE(userId, eventCustomPredictionId)

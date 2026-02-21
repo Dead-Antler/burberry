@@ -21,19 +21,11 @@ import {
 } from "@/components/ui/select"
 import { Skeleton } from "@/components/ui/skeleton"
 import { apiClient, ApiClientError } from "@/app/lib/api-client"
-import type {
-  PredictionGroup,
-  PredictionGroupWithMembers,
-  PredictionType,
+import {
+  PREDICTION_TYPE_LABELS,
+  type PredictionGroup,
+  type PredictionGroupWithMembers,
 } from "@/app/lib/api-types"
-
-const PREDICTION_TYPE_LABELS: Record<PredictionType, string> = {
-  boolean: "Yes/No",
-  count: "Count",
-  time: "Time",
-  wrestler: "Wrestler",
-  text: "Text",
-}
 
 interface ApplyGroupDialogProps {
   open: boolean
