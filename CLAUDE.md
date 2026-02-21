@@ -41,7 +41,7 @@ app/
     validation-schemas.ts   # Zod schemas
   login/page.tsx            # Login page
   page.tsx                  # Protected home
-proxy.ts                    # Route protection middleware
+proxy.ts                    # Route protection middleware (Next.js 16 convention)
 data/database.db            # SQLite database (gitignored)
 docs/API.md                 # Complete API reference
 scripts/

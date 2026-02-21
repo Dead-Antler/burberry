@@ -89,7 +89,7 @@ export async function GET(
       const SSE_MAX_CONNECTION_DURATION_MS = 60 * 60 * 1000; // 1 hour
 
       // Helper to send SSE message
-      const sendEvent = (data: any, event?: string) => {
+      const sendEvent = (data: Record<string, unknown>, event?: string) => {
         const message = `${event ? `event: ${event}\n` : ''}data: ${JSON.stringify(data)}\n\n`;
         controller.enqueue(encoder.encode(message));
       };

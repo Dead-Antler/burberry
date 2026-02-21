@@ -64,7 +64,7 @@ export function WrestlerSearchPrediction({
           })
           setWrestlers(wrestlerMap)
         })
-        .catch(console.error)
+        .catch((err) => console.error('Failed to load wrestler data for stats:', err))
     }
   }, [stats, match.winnerParticipantId])
 

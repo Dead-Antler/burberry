@@ -14,7 +14,7 @@ import {
 } from "@/components/ui/select"
 import { Badge } from "@/components/ui/badge"
 import { WrestlerSearchSelect } from "../predictions/wrestler-search-select"
-import type { MatchWithParticipants } from "@/app/lib/api-types"
+import type { MatchWithParticipants, MatchOutcome } from "@/app/lib/api-types"
 import { getParticipantDisplayName } from "@/app/lib/api-types"
 
 interface MatchAdminControlsProps {
@@ -24,7 +24,7 @@ interface MatchAdminControlsProps {
     isLocked?: boolean
     winningSide?: number | null
     winnerParticipantId?: string | null
-    outcome?: string
+    outcome?: MatchOutcome | null
   }) => Promise<void>
 }
 

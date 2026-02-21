@@ -62,7 +62,7 @@ export function CustomPredictionCard({
         map.set(w.id, w.currentName)
       }
       setWrestlerNames(map)
-    }).catch(() => {})
+    }).catch((err) => console.error('Failed to load wrestler names:', err))
   }, [type])
 
   // Determine user's prediction value

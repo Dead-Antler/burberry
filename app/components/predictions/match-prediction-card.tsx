@@ -13,6 +13,7 @@ import type {
   MatchWithParticipants,
   MatchPrediction,
   MatchPredictionStats,
+  MatchOutcome,
 } from "@/app/lib/api-types"
 
 interface MatchPredictionCardProps {
@@ -24,7 +25,12 @@ interface MatchPredictionCardProps {
   isAdmin?: boolean
   eventStatus: string
   onPredictionChange: (data: { predictedSide?: number; predictedParticipantId?: string }) => Promise<void>
-  onMatchUpdate?: (matchId: string, data: any) => Promise<void>
+  onMatchUpdate?: (matchId: string, data: {
+    isLocked?: boolean
+    winningSide?: number | null
+    winnerParticipantId?: string | null
+    outcome?: MatchOutcome | null
+  }) => Promise<void>
 }
 
 export function MatchPredictionCard({
