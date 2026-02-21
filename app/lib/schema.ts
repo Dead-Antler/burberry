@@ -16,6 +16,8 @@ export const users = sqliteTable('users', {
   image: text('image'),
   // Role-based access control (admin plugin)
   role: text('role').default('user'),
+  // User preferences
+  theme: text('theme').default('neutral'),
   banned: integer('banned', { mode: 'boolean' }).default(false),
   banReason: text('banReason'),
   banExpires: integer('banExpires', { mode: 'timestamp_ms' }),
@@ -212,9 +214,28 @@ export const customPredictionTemplates = sqliteTable('customPredictionTemplates'
   name: text('name').notNull(),
   description: text('description'),
   predictionType: text('predictionType').notNull(),
+  scoringMode: text('scoringMode').notNull().default('exact'),
+  cooldownDays: integer('cooldownDays'),
   createdAt: integer('createdAt', { mode: 'timestamp_ms' }).$defaultFn(() => new Date()),
   updatedAt: integer('updatedAt', { mode: 'timestamp_ms' }).$defaultFn(() => new Date()),
 });
+
+export const customPredictionGroups = sqliteTable('customPredictionGroups', {
+  id: text('id').primaryKey(),
+  name: text('name').notNull().unique(),
+  createdAt: integer('createdAt', { mode: 'timestamp_ms' }).$defaultFn(() => new Date()),
+  updatedAt: integer('updatedAt', { mode: 'timestamp_ms' }).$defaultFn(() => new Date()),
+});
+
+export const customPredictionGroupMembers = sqliteTable('customPredictionGroupMembers', {
+  id: text('id').primaryKey(),
+  groupId: text('groupId').notNull().references(() => customPredictionGroups.id),
+  templateId: text('templateId').notNull().references(() => customPredictionTemplates.id),
+  createdAt: integer('createdAt', { mode: 'timestamp_ms' }).$defaultFn(() => new Date()),
+}, (table) => ({
+  groupIdx: index('customPredictionGroupMembers_groupId_idx').on(table.groupId),
+  groupTemplateUnique: unique('customPredictionGroupMembers_groupId_templateId').on(table.groupId, table.templateId),
+}));
 
 export const eventCustomPredictions = sqliteTable('eventCustomPredictions', {
   id: text('id').primaryKey(),
@@ -243,6 +264,7 @@ export const userCustomPredictions = sqliteTable('userCustomPredictions', {
   predictionBoolean: integer('predictionBoolean', { mode: 'boolean' }),
   predictionText: text('predictionText'),
   isCorrect: integer('isCorrect', { mode: 'boolean' }),
+  pointsEarned: integer('pointsEarned'),
   createdAt: integer('createdAt', { mode: 'timestamp_ms' }).$defaultFn(() => new Date()),
   updatedAt: integer('updatedAt', { mode: 'timestamp_ms' }).$defaultFn(() => new Date()),
 }, (table) => ({

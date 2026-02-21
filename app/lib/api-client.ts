@@ -43,6 +43,14 @@ import type {
   UserCustomPrediction,
   CreateUserCustomPredictionRequest,
   UpdateUserCustomPredictionRequest,
+  CustomPredictionTemplate,
+  CreateCustomPredictionTemplateRequest,
+  UpdateCustomPredictionTemplateRequest,
+  PredictionGroup,
+  PredictionGroupWithMembers,
+  CreatePredictionGroupRequest,
+  UpdatePredictionGroupRequest,
+  PredictionGroupMember,
   UserEventContrarian,
   CreateContrarianRequest,
   ScoreEventResponse,
@@ -52,6 +60,9 @@ import type {
   User,
   CreateUserRequest,
   UpdateUserRequest,
+  ProfileData,
+  UpdateProfileRequest,
+  ChangePasswordRequest,
 } from './api-types';
 
 /**
@@ -110,6 +121,76 @@ class ApiClient {
     } catch {
       throw new ApiClientError('Failed to parse response', response.status, requestId);
     }
+  }
+
+  private async requestFormData<T>(url: string, formData: FormData): Promise<T> {
+    let response: Response;
+
+    try {
+      response = await fetch(url, {
+        method: 'POST',
+        body: formData,
+      });
+    } catch (error) {
+      throw new ApiClientError(
+        error instanceof Error ? `Network error: ${error.message}` : 'Network error',
+        0,
+        null
+      );
+    }
+
+    const requestId = response.headers.get('x-request-id');
+
+    if (!response.ok) {
+      let errorMessage = `HTTP ${response.status}`;
+      try {
+        const errorBody = await response.json();
+        errorMessage = errorBody.error || errorMessage;
+      } catch {
+        // Ignore JSON parse errors for error responses
+      }
+      throw new ApiClientError(errorMessage, response.status, requestId);
+    }
+
+    try {
+      return await response.json();
+    } catch {
+      throw new ApiClientError('Failed to parse response', response.status, requestId);
+    }
+  }
+
+  // ============================================================================
+  // Profile
+  // ============================================================================
+
+  async getProfile(): Promise<ProfileData> {
+    return this.request('/api/profile');
+  }
+
+  async updateProfile(data: UpdateProfileRequest): Promise<ProfileData> {
+    return this.request('/api/profile', {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async changePassword(data: ChangePasswordRequest): Promise<{ message: string }> {
+    return this.request('/api/profile/password', {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async uploadAvatar(file: File): Promise<{ image: string }> {
+    const formData = new FormData();
+    formData.append('avatar', file);
+    return this.requestFormData('/api/profile/avatar', formData);
+  }
+
+  async deleteAvatar(): Promise<{ message: string }> {
+    return this.request('/api/profile/avatar', {
+      method: 'DELETE',
+    });
   }
 
   // ============================================================================
@@ -662,6 +743,81 @@ class ApiClient {
 
   async deleteUser(id: string): Promise<{ message: string; id: string }> {
     return this.request(`/api/users/${id}`, {
+      method: 'DELETE',
+    });
+  }
+
+  // ============================================================================
+  // Custom Prediction Templates (Admin)
+  // ============================================================================
+
+  async getCustomPredictionTemplates(): Promise<CustomPredictionTemplate[]> {
+    const response = await this.request<{ data: CustomPredictionTemplate[] }>('/api/custom-prediction-templates?limit=100');
+    return response.data;
+  }
+
+  async createCustomPredictionTemplate(data: CreateCustomPredictionTemplateRequest): Promise<CustomPredictionTemplate> {
+    return this.request('/api/custom-prediction-templates', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async updateCustomPredictionTemplate(id: string, data: UpdateCustomPredictionTemplateRequest): Promise<CustomPredictionTemplate> {
+    return this.request(`/api/custom-prediction-templates/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async deleteCustomPredictionTemplate(id: string): Promise<{ message: string; id: string }> {
+    return this.request(`/api/custom-prediction-templates/${id}`, {
+      method: 'DELETE',
+    });
+  }
+
+  // ============================================================================
+  // Prediction Groups (Admin)
+  // ============================================================================
+
+  async getPredictionGroups(): Promise<PredictionGroup[]> {
+    const response = await this.request<{ data: PredictionGroup[] }>('/api/prediction-groups?limit=100');
+    return response.data;
+  }
+
+  async getPredictionGroup(id: string): Promise<PredictionGroupWithMembers> {
+    return this.request(`/api/prediction-groups/${id}`);
+  }
+
+  async createPredictionGroup(data: CreatePredictionGroupRequest): Promise<PredictionGroup> {
+    return this.request('/api/prediction-groups', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async updatePredictionGroup(id: string, data: UpdatePredictionGroupRequest): Promise<PredictionGroup> {
+    return this.request(`/api/prediction-groups/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async deletePredictionGroup(id: string): Promise<{ message: string; id: string }> {
+    return this.request(`/api/prediction-groups/${id}`, {
+      method: 'DELETE',
+    });
+  }
+
+  async addPredictionGroupMember(groupId: string, templateId: string): Promise<PredictionGroupMember> {
+    return this.request(`/api/prediction-groups/${groupId}/members`, {
+      method: 'POST',
+      body: JSON.stringify({ templateId }),
+    });
+  }
+
+  async removePredictionGroupMember(groupId: string, memberId: string): Promise<{ message: string; id: string }> {
+    return this.request(`/api/prediction-groups/${groupId}/members/${memberId}`, {
       method: 'DELETE',
     });
   }

@@ -34,12 +34,6 @@ app/lib/
 |-----|------|---------|-------------|
 | `auth.signupEnabled` | boolean | `false` | Allow new user registration |
 
-### Predictions
-
-| Key | Type | Default | Description |
-|-----|------|---------|-------------|
-| `predictions.reusableTemplates` | json | `[]` | Array of custom prediction template strings |
-
 ## Adding New Settings
 
 ### 1. Simple Settings (string, boolean, number)
@@ -59,8 +53,7 @@ Add a Zod schema to `jsonSettingSchemas` in `settings-schemas.ts`:
 
 ```typescript
 export const jsonSettingSchemas = {
-  'predictions.reusableTemplates': z.array(z.string().min(1).max(500)),
-  'scoring.rules': z.object({  // New
+  'scoring.rules': z.object({
     correctPrediction: z.number().min(0),
     bonusMultiplier: z.number().min(1),
   }),
@@ -74,14 +67,10 @@ export const jsonSettingSchemas = {
 ```typescript
 import { settingsService } from '@/app/lib/services/settings.service';
 
-// Get a JSON setting (type-safe)
-const templates = await settingsService.getJson('predictions.reusableTemplates');
-
 // Get a simple setting
 const signupEnabled = await settingsService.getSimple('auth.signupEnabled');
 
 // Set a setting
-await settingsService.setJson('predictions.reusableTemplates', ['Template 1']);
 await settingsService.setSimple('auth.signupEnabled', true);
 ```
 

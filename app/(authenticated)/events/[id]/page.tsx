@@ -7,12 +7,13 @@ import { SiteHeader } from "@/app/components/site-header"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { Avatar, AvatarFallback } from "@/components/ui/avatar"
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
 import { useSession } from "@/app/lib/auth-client"
 import { MatchPredictionCard } from "@/app/components/predictions/match-prediction-card"
+import { CustomPredictionCard } from "@/app/components/predictions/custom-prediction-card"
 import { EventAdminControls } from "@/app/components/events/event-admin-controls"
 import { EventLeaderboard } from "./event-leaderboard"
 import { useEventData } from "./use-event-data"
@@ -34,6 +35,8 @@ export default function EventPredictionPage({
     participants,
     userJoin,
     userPredictions,
+    eventCustomPredictions,
+    userCustomPredictions,
     predictionStats,
     leaderboard,
     activeTab,
@@ -43,6 +46,8 @@ export default function EventPredictionPage({
     isAnimating,
     setIsAnimating,
     handlePredictionChange,
+    handleCustomPredictionChange,
+    refreshCustomPredictions,
     handleMatchUpdate,
     handleCreateSurpriseMatch,
   } = useEventData(eventId)
@@ -150,6 +155,7 @@ export default function EventPredictionPage({
                 {participants.map((p) => (
                   <div key={p.id} className="flex items-center gap-2">
                     <Avatar className="h-8 w-8">
+                      {p.user.image && <AvatarImage src={p.user.image} alt={p.user.name || p.user.email} />}
                       <AvatarFallback className="text-xs">
                         {p.user.name?.[0]?.toUpperCase() || p.user.email[0].toUpperCase()}
                       </AvatarFallback>
@@ -172,6 +178,8 @@ export default function EventPredictionPage({
             onEventUpdate={setEvent}
             onSurpriseMatch={handleCreateSurpriseMatch}
             matchCount={matches.length}
+            customPredictions={eventCustomPredictions}
+            onCustomPredictionsUpdated={refreshCustomPredictions}
           />
         )}
 
@@ -184,42 +192,72 @@ export default function EventPredictionPage({
 
           {/* Matches Tab */}
           <TabsContent value="matches">
-            <Card>
-              <CardHeader>
-                <CardTitle>Matches</CardTitle>
-                <CardDescription>
+            <div className="space-y-2">
+              <div>
+                <h2 className="text-lg font-semibold">Matches</h2>
+                <p className="text-sm text-muted-foreground">
                   {isLocked
                     ? "Predictions are locked. Results will be available soon."
                     : "Make your predictions for each match"}
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="p-0">
-                <div className="divide-y">
-                  {matches.length === 0 ? (
-                    <div className="p-8 text-center text-muted-foreground">
+                </p>
+              </div>
+              <div className="space-y-3">
+                {matches.length === 0 ? (
+                  <Card>
+                    <CardContent className="p-8 text-center text-muted-foreground">
                       No matches added yet
-                    </div>
-                  ) : (
-                    matches
-                      .sort((a, b) => a.matchOrder - b.matchOrder)
-                      .map((match) => (
-                        <MatchPredictionCard
-                          key={match.id}
-                          match={match}
-                          userPrediction={userPredictions.get(match.id)}
-                          stats={predictionStats?.matches.find((m) => m.matchId === match.id)}
-                          hidePredictors={event.hidePredictors}
-                          isLocked={match.isLocked || event.status === 'completed'}
-                          isAdmin={isAdmin}
-                          eventStatus={event.status}
-                          onPredictionChange={async (data) => await handlePredictionChange(match.id, data)}
-                          onMatchUpdate={handleMatchUpdate}
-                        />
-                      ))
-                  )}
+                    </CardContent>
+                  </Card>
+                ) : (
+                  matches
+                    .sort((a, b) => a.matchOrder - b.matchOrder)
+                    .map((match) => (
+                      <MatchPredictionCard
+                        key={match.id}
+                        match={match}
+                        userPrediction={userPredictions.get(match.id)}
+                        stats={predictionStats?.matches.find((m) => m.matchId === match.id)}
+                        hidePredictors={event.hidePredictors}
+                        isLocked={match.isLocked || event.status === 'completed'}
+                        isAdmin={isAdmin}
+                        eventStatus={event.status}
+                        onPredictionChange={async (data) => await handlePredictionChange(match.id, data)}
+                        onMatchUpdate={handleMatchUpdate}
+                      />
+                    ))
+                )}
+              </div>
+            </div>
+
+            {/* Custom Predictions */}
+            {eventCustomPredictions.length > 0 && (
+              <div className="space-y-2 mt-6">
+                <div>
+                  <h2 className="text-lg font-semibold">Custom Predictions</h2>
+                  <p className="text-sm text-muted-foreground">
+                    {isLocked
+                      ? "Custom predictions are locked."
+                      : "Make your predictions for each question"}
+                  </p>
                 </div>
-              </CardContent>
-            </Card>
+                <div className="space-y-3">
+                  {eventCustomPredictions.map((cp) => (
+                    <CustomPredictionCard
+                      key={cp.eventCustomPrediction.id}
+                      prediction={cp}
+                      userPrediction={userCustomPredictions.get(cp.eventCustomPrediction.id)}
+                      stats={predictionStats?.customPredictions.find(
+                        (s) => s.eventCustomPredictionId === cp.eventCustomPrediction.id
+                      )}
+                      hidePredictors={event.hidePredictors}
+                      isLocked={isLocked}
+                      eventStatus={event.status}
+                      onPredictionChange={handleCustomPredictionChange}
+                    />
+                  ))}
+                </div>
+              </div>
+            )}
           </TabsContent>
 
           {/* Results Tab */}

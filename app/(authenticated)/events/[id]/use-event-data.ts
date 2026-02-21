@@ -8,6 +8,8 @@ import type {
   MatchWithParticipants,
   MatchPrediction,
   EventPredictionStats,
+  EventCustomPredictionWithTemplate,
+  UserCustomPrediction,
   Leaderboard,
   UpdateMatchRequest,
 } from "@/app/lib/api-types"
@@ -19,6 +21,8 @@ interface UseEventDataReturn {
   participants: EventJoinWithUser[]
   userJoin: EventJoin | null
   userPredictions: Map<string, MatchPrediction>
+  eventCustomPredictions: EventCustomPredictionWithTemplate[]
+  userCustomPredictions: Map<string, UserCustomPrediction>
   predictionStats: EventPredictionStats | null
   leaderboard: Leaderboard | null
   setLeaderboard: (leaderboard: Leaderboard | null) => void
@@ -30,6 +34,8 @@ interface UseEventDataReturn {
   setIsAnimating: (animating: boolean) => void
   fetchData: () => Promise<void>
   handlePredictionChange: (matchId: string, data: { predictedSide?: number; predictedParticipantId?: string }) => Promise<void>
+  handleCustomPredictionChange: (eventCustomPredictionId: string, data: Record<string, unknown>) => Promise<void>
+  refreshCustomPredictions: () => Promise<void>
   handleMatchUpdate: (matchId: string, data: UpdateMatchRequest) => Promise<void>
   handleCreateSurpriseMatch: () => Promise<void>
 }
@@ -42,6 +48,8 @@ export function useEventData(eventId: string): UseEventDataReturn {
   const [participants, setParticipants] = useState<EventJoinWithUser[]>([])
   const [userJoin, setUserJoin] = useState<EventJoin | null>(null)
   const [userPredictions, setUserPredictions] = useState<Map<string, MatchPrediction>>(new Map())
+  const [eventCustomPredictions, setEventCustomPredictions] = useState<EventCustomPredictionWithTemplate[]>([])
+  const [userCustomPredictions, setUserCustomPredictions] = useState<Map<string, UserCustomPrediction>>(new Map())
   const [predictionStats, setPredictionStats] = useState<EventPredictionStats | null>(null)
   const [leaderboard, setLeaderboard] = useState<Leaderboard | null>(null)
   const [activeTab, setActiveTab] = useState<string>("matches")
@@ -80,6 +88,26 @@ export function useEventData(eventId: string): UseEventDataReturn {
         predMap.set(pred.matchId, pred)
       })
       setUserPredictions(predMap)
+
+      // Fetch custom predictions for this event
+      try {
+        const customPreds = await apiClient.getEventCustomPredictions(eventId, true) as EventCustomPredictionWithTemplate[]
+        setEventCustomPredictions(customPreds)
+      } catch (err) {
+        console.error('Failed to load custom predictions:', err)
+      }
+
+      // Fetch user's custom predictions
+      try {
+        const userCustomPreds = await apiClient.getUserCustomPredictions({ eventId })
+        const customPredMap = new Map<string, UserCustomPrediction>()
+        userCustomPreds.forEach((pred) => {
+          customPredMap.set(pred.eventCustomPredictionId, pred)
+        })
+        setUserCustomPredictions(customPredMap)
+      } catch (err) {
+        console.error('Failed to load user custom predictions:', err)
+      }
 
       try {
         const stats = await apiClient.getEventPredictionStats(eventId)
@@ -211,6 +239,49 @@ export function useEventData(eventId: string): UseEventDataReturn {
     }
   }
 
+  const refreshCustomPredictions = useCallback(async () => {
+    try {
+      const customPreds = await apiClient.getEventCustomPredictions(eventId, true) as EventCustomPredictionWithTemplate[]
+      setEventCustomPredictions(customPreds)
+
+      const userCustomPreds = await apiClient.getUserCustomPredictions({ eventId })
+      const customPredMap = new Map<string, UserCustomPrediction>()
+      userCustomPreds.forEach((pred) => {
+        customPredMap.set(pred.eventCustomPredictionId, pred)
+      })
+      setUserCustomPredictions(customPredMap)
+
+      const stats = await apiClient.getEventPredictionStats(eventId)
+      setPredictionStats(stats)
+    } catch (err) {
+      console.error('Failed to refresh custom predictions:', err)
+    }
+  }, [eventId])
+
+  const handleCustomPredictionChange = async (
+    eventCustomPredictionId: string,
+    data: Record<string, unknown>
+  ) => {
+    try {
+      const savedPrediction = await apiClient.createUserCustomPrediction({
+        eventCustomPredictionId,
+        ...data,
+      })
+
+      setUserCustomPredictions((prev) => {
+        const next = new Map(prev)
+        next.set(eventCustomPredictionId, savedPrediction)
+        return next
+      })
+
+      const stats = await apiClient.getEventPredictionStats(eventId)
+      setPredictionStats(stats)
+    } catch (err) {
+      console.error('Failed to save custom prediction:', err)
+      refreshCustomPredictions()
+    }
+  }
+
   const handleMatchUpdate = async (matchId: string, data: UpdateMatchRequest) => {
     try {
       await apiClient.updateMatch(matchId, data)
@@ -251,6 +322,8 @@ export function useEventData(eventId: string): UseEventDataReturn {
     participants,
     userJoin,
     userPredictions,
+    eventCustomPredictions,
+    userCustomPredictions,
     predictionStats,
     leaderboard,
     setLeaderboard,
@@ -262,6 +335,8 @@ export function useEventData(eventId: string): UseEventDataReturn {
     setIsAnimating,
     fetchData,
     handlePredictionChange,
+    handleCustomPredictionChange,
+    refreshCustomPredictions,
     handleMatchUpdate,
     handleCreateSurpriseMatch,
   }

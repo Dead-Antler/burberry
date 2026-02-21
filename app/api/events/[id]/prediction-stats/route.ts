@@ -9,6 +9,7 @@ import {
   eventCustomPredictions,
   userCustomPredictions,
   users,
+  wrestlers,
 } from '@/app/lib/schema';
 import { apiHandler, apiSuccess, apiError, sanitizeText } from '@/app/lib/api-helpers';
 import { eq, inArray } from 'drizzle-orm';
@@ -196,26 +197,98 @@ export const GET = apiHandler(async (req: NextRequest, { params, session }) => {
     customPredByTemplate.get(p.eventCustomPredictionId)!.push(p);
   }
 
+  // Collect all wrestler IDs referenced in custom predictions for name resolution
+  const allWrestlerIds = new Set<string>();
+  for (const predictions of customPredByTemplate.values()) {
+    for (const p of predictions) {
+      if (p.predictionWrestlerId && typeof p.predictionWrestlerId === 'string') {
+        try {
+          const parsed = JSON.parse(p.predictionWrestlerId);
+          if (Array.isArray(parsed)) {
+            for (const id of parsed) allWrestlerIds.add(id);
+          } else {
+            allWrestlerIds.add(p.predictionWrestlerId);
+          }
+        } catch {
+          allWrestlerIds.add(p.predictionWrestlerId);
+        }
+      }
+    }
+  }
+  // Also collect wrestler IDs from answers
+  for (const { eventCustomPredictions: ecp } of customTemplates) {
+    if (ecp.answerWrestlerId) {
+      try {
+        const parsed = JSON.parse(ecp.answerWrestlerId);
+        if (Array.isArray(parsed)) {
+          for (const id of parsed) allWrestlerIds.add(id);
+        } else {
+          allWrestlerIds.add(ecp.answerWrestlerId);
+        }
+      } catch {
+        allWrestlerIds.add(ecp.answerWrestlerId);
+      }
+    }
+  }
+
+  // Batch fetch wrestler names
+  const wrestlerNameMap = new Map<string, string>();
+  if (allWrestlerIds.size > 0) {
+    const wrestlerRecords = await db
+      .select({ id: wrestlers.id, currentName: wrestlers.currentName })
+      .from(wrestlers)
+      .where(inArray(wrestlers.id, Array.from(allWrestlerIds)));
+    for (const w of wrestlerRecords) {
+      wrestlerNameMap.set(w.id, w.currentName);
+    }
+  }
+
   const customStats = [];
   for (const { eventCustomPredictions: eventCustomPred } of customTemplates) {
     const predictions = customPredByTemplate.get(eventCustomPred.id) || [];
     const totalPredictions = predictions.length;
 
     // Group by value (extract the non-null prediction field)
+    // For wrestler multi-select, expand JSON arrays so each wrestler appears individually
     const valueMap = new Map();
     for (const p of predictions) {
-      const value =
+      const rawValue =
         p.predictionTime ??
         p.predictionCount ??
         p.predictionWrestlerId ??
         p.predictionBoolean ??
         p.predictionText;
-      if (!valueMap.has(value)) {
-        valueMap.set(value, { count: 0, predictors: [] });
+
+      // For wrestler multi-select, split JSON array into individual entries
+      let values: unknown[];
+      if (p.predictionWrestlerId && typeof p.predictionWrestlerId === 'string') {
+        try {
+          const parsed = JSON.parse(p.predictionWrestlerId);
+          values = Array.isArray(parsed) ? parsed : [p.predictionWrestlerId];
+        } catch {
+          values = [p.predictionWrestlerId];
+        }
+      } else {
+        values = [rawValue];
       }
-      valueMap.get(value).count++;
-      if (!hidePredictors && p.userName) {
-        valueMap.get(value).predictors.push(sanitizeText(p.userName, 100));
+
+      for (const value of values) {
+        // Resolve wrestler IDs to names for display
+        const displayValue = typeof value === 'string' && wrestlerNameMap.has(value)
+          ? wrestlerNameMap.get(value)!
+          : value;
+        if (!valueMap.has(displayValue)) {
+          valueMap.set(displayValue, { count: 0, predictors: [] });
+        }
+        valueMap.get(displayValue).count++;
+        if (!hidePredictors && p.userName) {
+          // Avoid duplicate predictor names in the same value bucket
+          const predictors = valueMap.get(displayValue).predictors;
+          const name = sanitizeText(p.userName, 100);
+          if (!predictors.includes(name)) {
+            predictors.push(name);
+          }
+        }
       }
     }
 

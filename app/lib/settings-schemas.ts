@@ -29,13 +29,6 @@ export type SettingScope = (typeof settingScopes)[number];
  * Keys are namespaced setting keys, values are Zod schemas
  */
 export const jsonSettingSchemas = {
-  /**
-   * Reusable custom prediction templates
-   * Array of template strings that can be used when creating event predictions
-   * e.g., "How many times does <wrestler> get injured"
-   */
-  'predictions.reusableTemplates': z.array(z.string().min(1).max(500)),
-
   // Future examples:
   // 'scoring.rules': z.object({
   //   correctPrediction: z.number().min(0),

@@ -60,6 +60,7 @@ export interface AuthSession {
     emailVerified: boolean;
     image: string | null;
     role: string | null;
+    theme: string | null;
     banned: boolean | null;
     banReason: string | null;
     banExpires: Date | null;
@@ -228,6 +229,9 @@ const VALID_PREFIXES = [
   'eventcustompred',
   'usereventjoin',
   'user',
+  'customtpl',
+  'predgroup',
+  'predgroupmem',
 ] as const;
 
 export type EntityPrefix = typeof VALID_PREFIXES[number];

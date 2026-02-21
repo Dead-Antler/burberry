@@ -15,16 +15,19 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
 import { apiClient } from "@/app/lib/api-client"
-import type { Event, EventStatus } from "@/app/lib/api-types"
+import type { Event, EventStatus, EventCustomPredictionWithTemplate } from "@/app/lib/api-types"
+import { CustomPredictionAdmin } from "./custom-prediction-admin"
 
 interface EventAdminControlsProps {
   event: Event
   onEventUpdate: (event: Event) => void
   onSurpriseMatch?: () => void
   matchCount: number
+  customPredictions?: EventCustomPredictionWithTemplate[]
+  onCustomPredictionsUpdated?: () => void
 }
 
-export function EventAdminControls({ event, onEventUpdate, onSurpriseMatch, matchCount }: EventAdminControlsProps) {
+export function EventAdminControls({ event, onEventUpdate, onSurpriseMatch, matchCount, customPredictions, onCustomPredictionsUpdated }: EventAdminControlsProps) {
   const [isUpdating, setIsUpdating] = useState(false)
   const [confirmDialog, setConfirmDialog] = useState<{
     open: boolean
@@ -174,6 +177,16 @@ export function EventAdminControls({ event, onEventUpdate, onSurpriseMatch, matc
           <div className="flex gap-2">
             {statusActions}
           </div>
+
+          {/* Custom Predictions Management */}
+          {customPredictions && onCustomPredictionsUpdated && (
+            <CustomPredictionAdmin
+              eventId={event.id}
+              eventStatus={event.status}
+              customPredictions={customPredictions}
+              onUpdated={onCustomPredictionsUpdated}
+            />
+          )}
         </CardContent>
       </Card>
 

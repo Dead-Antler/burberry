@@ -21,10 +21,14 @@ export const metadata: Metadata = {
 // Inline script to prevent theme flash - runs before paint
 const themeScript = `
   (function() {
-    const theme = localStorage.getItem('theme') || 'system';
-    const systemDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-    const resolved = theme === 'system' ? (systemDark ? 'dark' : 'light') : theme;
+    var theme = localStorage.getItem('theme') || 'system';
+    var systemDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+    var resolved = theme === 'system' ? (systemDark ? 'dark' : 'light') : theme;
     document.documentElement.classList.add(resolved);
+    var colorTheme = localStorage.getItem('color-theme');
+    if (colorTheme && colorTheme !== 'neutral') {
+      document.documentElement.dataset.theme = colorTheme;
+    }
   })();
 `;
 

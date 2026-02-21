@@ -14,7 +14,7 @@ import {
   userEventJoin,
   wrestlers,
 } from '../schema';
-import { eq, and, inArray } from 'drizzle-orm';
+import { eq, and, inArray, gte, ne } from 'drizzle-orm';
 import { generateId, apiError } from '../api-helpers';
 import {
   ensureExists,
@@ -217,8 +217,11 @@ export const matchPredictionService = {
     // Verify ownership
     const prediction = await ensureOwnership(matchPredictions, id, userId, 'userId', 'Match prediction');
 
-    // Verify event is still open
-    await requireMatchEventOpen(prediction.matchId);
+    // Verify event is still open and match is not locked
+    const { match } = await requireMatchEventOpen(prediction.matchId);
+    if (match.isLocked) {
+      throw apiError('Cannot modify predictions for a locked match', 400);
+    }
 
     const [updated] = await db
       .update(matchPredictions)
@@ -244,8 +247,11 @@ export const matchPredictionService = {
     // Verify ownership
     const prediction = await ensureOwnership(matchPredictions, id, userId, 'userId', 'Match prediction');
 
-    // Verify event is still open
-    await requireMatchEventOpen(prediction.matchId);
+    // Verify event is still open and match is not locked
+    const { match } = await requireMatchEventOpen(prediction.matchId);
+    if (match.isLocked) {
+      throw apiError('Cannot modify predictions for a locked match', 400);
+    }
 
     await db.delete(matchPredictions).where(eq(matchPredictions.id, id));
   },
@@ -390,9 +396,93 @@ export const customPredictionService = {
     // Validate correct field is provided and no extra fields
     validatePredictionTypeField(predictionType, input);
 
-    // Validate wrestler foreign key if applicable
+    // Validate wrestler foreign keys if applicable (multi-select: JSON array of IDs)
+    let parsedWrestlerIds: string[] | null = null;
     if (predictionType === 'wrestler' && input.predictionWrestlerId) {
-      await ensureForeignKey(wrestlers, input.predictionWrestlerId, 'Wrestler');
+      try {
+        parsedWrestlerIds = JSON.parse(input.predictionWrestlerId);
+      } catch {
+        throw apiError('predictionWrestlerId must be a JSON array of wrestler IDs', 400);
+      }
+      if (!Array.isArray(parsedWrestlerIds) || parsedWrestlerIds.length === 0) {
+        throw apiError('At least one wrestler must be selected', 400);
+      }
+      for (const wrestlerId of parsedWrestlerIds) {
+        await ensureForeignKey(wrestlers, wrestlerId, 'Wrestler');
+      }
+    }
+
+    // Check wrestler cooldown if template has cooldownDays set
+    const cooldownDays = eventPrediction.template.cooldownDays;
+    if (predictionType === 'wrestler' && cooldownDays && parsedWrestlerIds) {
+      // Get the current event to know its brand and date
+      const [currentEvent] = await db
+        .select()
+        .from(events)
+        .where(eq(events.id, eventPrediction.eventCustomPrediction.eventId));
+
+      if (currentEvent) {
+        const cutoffMs = currentEvent.eventDate.getTime() - cooldownDays * 24 * 60 * 60 * 1000;
+        const cutoffDate = new Date(cutoffMs);
+
+        // Find recent wrestler predictions by this user for the same brand
+        const recentPreds = await db
+          .select({
+            predictionWrestlerId: userCustomPredictions.predictionWrestlerId,
+          })
+          .from(userCustomPredictions)
+          .innerJoin(
+            eventCustomPredictions,
+            eq(userCustomPredictions.eventCustomPredictionId, eventCustomPredictions.id)
+          )
+          .innerJoin(events, eq(eventCustomPredictions.eventId, events.id))
+          .innerJoin(
+            customPredictionTemplates,
+            eq(eventCustomPredictions.templateId, customPredictionTemplates.id)
+          )
+          .where(
+            and(
+              eq(userCustomPredictions.userId, userId),
+              eq(events.brandId, currentEvent.brandId),
+              eq(customPredictionTemplates.predictionType, 'wrestler'),
+              gte(events.eventDate, cutoffDate),
+              // Exclude the current question (allow updating own picks)
+              ne(userCustomPredictions.eventCustomPredictionId, input.eventCustomPredictionId)
+            )
+          );
+
+        // Collect all wrestler IDs from recent predictions
+        const recentWrestlerIds = new Set<string>();
+        for (const pred of recentPreds) {
+          if (pred.predictionWrestlerId) {
+            try {
+              const ids = JSON.parse(pred.predictionWrestlerId);
+              if (Array.isArray(ids)) {
+                for (const id of ids) recentWrestlerIds.add(id);
+              } else {
+                recentWrestlerIds.add(pred.predictionWrestlerId);
+              }
+            } catch {
+              recentWrestlerIds.add(pred.predictionWrestlerId);
+            }
+          }
+        }
+
+        // Check for cooldown violations
+        const violations = parsedWrestlerIds.filter((id) => recentWrestlerIds.has(id));
+        if (violations.length > 0) {
+          // Resolve wrestler names for a clear error message
+          const violationRecords = await db
+            .select({ id: wrestlers.id, currentName: wrestlers.currentName })
+            .from(wrestlers)
+            .where(inArray(wrestlers.id, violations));
+          const names = violationRecords.map((w) => w.currentName).join(', ');
+          throw apiError(
+            `Wrestler cooldown: ${names} ${violations.length === 1 ? 'was' : 'were'} already picked within the last ${cooldownDays} days for this brand`,
+            400
+          );
+        }
+      }
     }
 
     // Use transaction to prevent TOCTOU race condition
@@ -482,9 +572,20 @@ export const customPredictionService = {
       throw apiError('No fields to update', 400);
     }
 
-    // Validate wrestler foreign key if provided
+    // Validate wrestler foreign keys if provided (multi-select: JSON array of IDs)
     if (input.predictionWrestlerId) {
-      await ensureForeignKey(wrestlers, input.predictionWrestlerId, 'Wrestler');
+      let wrestlerIds: string[];
+      try {
+        wrestlerIds = JSON.parse(input.predictionWrestlerId);
+      } catch {
+        throw apiError('predictionWrestlerId must be a JSON array of wrestler IDs', 400);
+      }
+      if (!Array.isArray(wrestlerIds) || wrestlerIds.length === 0) {
+        throw apiError('At least one wrestler must be selected', 400);
+      }
+      for (const wrestlerId of wrestlerIds) {
+        await ensureForeignKey(wrestlers, wrestlerId, 'Wrestler');
+      }
     }
 
     // Verify ownership

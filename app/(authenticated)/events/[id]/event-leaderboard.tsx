@@ -4,7 +4,7 @@ import { RotateCcw } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { Avatar, AvatarFallback } from "@/components/ui/avatar"
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import type { Event, EventJoinWithUser, Leaderboard } from "@/app/lib/api-types"
 
 interface EventLeaderboardProps {
@@ -68,12 +68,12 @@ export function EventLeaderboard({
           </div>
         ) : (
           <div className="space-y-2">
-            {leaderboard
-              .sort((a, b) => b.totalScore - a.totalScore)
-              .map((score, index) => {
+            {leaderboard.map((score, index) => {
                 const participant = participants.find((p) => p.userId === score.userId)
                 const isCurrentUser = currentUserId === score.userId
-                const placement = index + 1
+                const placement = index === 0 || score.totalScore !== leaderboard[index - 1].totalScore
+                  ? index + 1
+                  : leaderboard.findIndex((s) => s.totalScore === score.totalScore) + 1
 
                 const positionFromBottom = leaderboard.length - index - 1
                 const isVisible = hasAnimated || (isAnimating && visibleCount > positionFromBottom)
@@ -91,19 +91,15 @@ export function EventLeaderboard({
                   borderClass = 'border-orange-400 dark:border-orange-600'
                 }
 
-                let scaleClass = ''
-                if (placement === 1) scaleClass = 'scale-105'
-                else if (placement === 2) scaleClass = 'scale-[1.03]'
-                else if (placement === 3) scaleClass = 'scale-[1.01]'
-                else scaleClass = 'scale-95'
+                const widthClass = placement === 1 ? 'w-full' : placement === 2 ? 'w-[95%]' : placement === 3 ? 'w-[90%]' : 'w-[85%]'
 
                 return (
                   <div
                     key={score.userId}
-                    className={`flex items-center justify-between p-4 rounded-lg transition-all duration-500 ${borderClass} ${bgClass} ${
+                    className={`flex items-center justify-between p-4 rounded-lg transition-all duration-500 mx-auto ${widthClass} ${borderClass} ${bgClass} ${
                       isVisible
-                        ? `opacity-100 translate-y-0 ${scaleClass}`
-                        : 'opacity-0 translate-y-4 scale-90'
+                        ? 'opacity-100 translate-y-0'
+                        : 'opacity-0 translate-y-4'
                     }`}
                     style={{
                       transitionDelay: isVisible ? '0ms' : `${positionFromBottom * 100}ms`,
@@ -119,6 +115,7 @@ export function EventLeaderboard({
                         #{placement}
                       </div>
                       <Avatar className="h-10 w-10">
+                        {participant?.user.image && <AvatarImage src={participant.user.image} alt={participant.user.name || participant.user.email} />}
                         <AvatarFallback>
                           {participant?.user.name?.[0]?.toUpperCase() ||
                            participant?.user.email[0].toUpperCase() || '?'}
@@ -141,7 +138,7 @@ export function EventLeaderboard({
                         <div className="text-sm text-muted-foreground">
                           Match: {score.matchPredictions.correct}/{score.matchPredictions.total}
                           {score.customPredictions.total > 0 && (
-                            <> · Custom: {score.customPredictions.correct}/{score.customPredictions.total}</>
+                            <> · Custom: {score.customPredictions.points}/{score.customPredictions.total}</>
                           )}
                           {score.isContrarian && (
                             <Badge variant="destructive" className="ml-2 text-xs">

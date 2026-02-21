@@ -29,11 +29,11 @@ export const GET = apiHandler(async () => {
     string,
     {
       userId: string;
-      user?: { name: string | null; email: string };
+      user?: { name: string | null; email: string; image?: string | null };
       totalPoints: number;
       eventsParticipated: number;
       matchPredictions: { total: number; correct: number };
-      customPredictions: { total: number; correct: number };
+      customPredictions: { total: number; correct: number; points: number };
       contrarianWins: number;
       firstPlaceFinishes: number;
     }
@@ -52,7 +52,7 @@ export const GET = apiHandler(async () => {
           totalPoints: 0,
           eventsParticipated: 0,
           matchPredictions: { total: 0, correct: 0 },
-          customPredictions: { total: 0, correct: 0 },
+          customPredictions: { total: 0, correct: 0, points: 0 },
           contrarianWins: 0,
           firstPlaceFinishes: 0,
         };
@@ -65,6 +65,7 @@ export const GET = apiHandler(async () => {
       userScore.matchPredictions.correct += score.matchPredictions.correct;
       userScore.customPredictions.total += score.customPredictions.total;
       userScore.customPredictions.correct += score.customPredictions.correct;
+      userScore.customPredictions.points += score.customPredictions.points;
 
       if (score.didWinContrarian) {
         userScore.contrarianWins += 1;

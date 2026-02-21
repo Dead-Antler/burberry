@@ -39,11 +39,11 @@ export function MatchHeader({ match, isLocked }: MatchHeaderProps) {
 
   return (
     <div className="flex items-center gap-2 mb-2">
-      <span className="text-sm font-medium text-muted-foreground">
+      <span className="text-base font-medium">
         Match {match.matchOrder}
       </span>
       {match.matchType && (
-        <Badge variant="outline" className="text-xs">
+        <Badge variant="outline" className="text-sm">
           {match.matchType}
         </Badge>
       )}

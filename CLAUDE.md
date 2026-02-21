@@ -135,7 +135,6 @@ scripts/
 Key-value store for application configuration. See [docs/Settings.md](docs/Settings.md) for details.
 
 - `auth.signupEnabled` - Enable/disable user registration (default: false)
-- `predictions.reusableTemplates` - Custom prediction template strings
 
 ## API Reference
 

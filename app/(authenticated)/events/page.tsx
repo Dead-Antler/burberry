@@ -221,10 +221,9 @@ export default function EventsPage() {
 
                   {/* Row 3: Brand */}
                   <div className="px-6">
-                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                      <span className="font-medium shrink-0">Brand:</span>
-                      <span className="truncate">{getBrandName(event.brandId)}</span>
-                    </div>
+                    <Badge variant="secondary" className="text-xs">
+                      {getBrandName(event.brandId)}
+                    </Badge>
                   </div>
 
                   {/* Row 4: Joined Status (or empty space) */}

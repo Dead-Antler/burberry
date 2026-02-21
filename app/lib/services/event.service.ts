@@ -71,27 +71,97 @@ type ContrarianRecord = typeof userEventJoin.$inferSelect;
 // ============================================================================
 
 /**
- * Evaluate if a custom prediction is correct based on type
+ * Evaluate a custom prediction and return points earned.
+ * For most types this is 0 or 1. For wrestler (multi-select) it's the count
+ * of correct wrestler IDs (1 point per match).
  */
 function evaluateCustomPrediction(
   predictionType: string,
   userPrediction: UserCustomPredictionRecord,
   answer: EventCustomPredictionRecord
-): boolean {
+): number {
   switch (predictionType) {
     case 'time':
-      return userPrediction.predictionTime?.getTime() === answer.answerTime?.getTime();
+      return userPrediction.predictionTime?.getTime() === answer.answerTime?.getTime() ? 1 : 0;
     case 'count':
-      return userPrediction.predictionCount === answer.answerCount;
-    case 'wrestler':
-      return userPrediction.predictionWrestlerId === answer.answerWrestlerId;
+      return userPrediction.predictionCount === answer.answerCount ? 1 : 0;
+    case 'wrestler': {
+      // Multi-select: both fields store JSON arrays of wrestler IDs
+      if (!userPrediction.predictionWrestlerId || !answer.answerWrestlerId) return 0;
+      try {
+        const userIds: string[] = JSON.parse(userPrediction.predictionWrestlerId);
+        const answerIds: string[] = JSON.parse(answer.answerWrestlerId);
+        const answerSet = new Set(answerIds);
+        return userIds.filter((id) => answerSet.has(id)).length;
+      } catch {
+        // Fallback for legacy single-ID format
+        return userPrediction.predictionWrestlerId === answer.answerWrestlerId ? 1 : 0;
+      }
+    }
     case 'boolean':
-      return userPrediction.predictionBoolean === answer.answerBoolean;
+      return userPrediction.predictionBoolean === answer.answerBoolean ? 1 : 0;
     case 'text':
-      return userPrediction.predictionText?.toLowerCase() === answer.answerText?.toLowerCase();
+      return userPrediction.predictionText?.toLowerCase() === answer.answerText?.toLowerCase() ? 1 : 0;
     default:
-      return false;
+      return 0;
   }
+}
+
+/**
+ * "Closest without going over" comparative scoring.
+ * Returns the set of prediction IDs that are winners (closest to answer without exceeding).
+ * If everyone goes over, nobody wins (empty set).
+ * Handles ties: all tied predictions win.
+ */
+function evaluateClosestUnder(
+  predictionType: string,
+  userPreds: UserCustomPredictionRecord[],
+  answer: EventCustomPredictionRecord
+): Set<string> {
+  const winners = new Set<string>();
+
+  let answerValue: number | null = null;
+  if (predictionType === 'count') {
+    answerValue = answer.answerCount;
+  } else if (predictionType === 'time') {
+    answerValue = answer.answerTime?.getTime() ?? null;
+  }
+
+  if (answerValue === null) return winners;
+
+  // Find each prediction's value and distance from answer
+  let bestDistance = Infinity;
+  const candidates: { id: string; distance: number }[] = [];
+
+  for (const pred of userPreds) {
+    let predValue: number | null = null;
+    if (predictionType === 'count') {
+      predValue = pred.predictionCount;
+    } else if (predictionType === 'time') {
+      predValue = pred.predictionTime?.getTime() ?? null;
+    }
+
+    if (predValue === null) continue;
+
+    // Must not exceed the answer
+    if (predValue > answerValue) continue;
+
+    const distance = answerValue - predValue;
+    candidates.push({ id: pred.id, distance });
+
+    if (distance < bestDistance) {
+      bestDistance = distance;
+    }
+  }
+
+  // All candidates tied at the best distance are winners
+  for (const c of candidates) {
+    if (c.distance === bestDistance) {
+      winners.add(c.id);
+    }
+  }
+
+  return winners;
 }
 
 /**
@@ -220,19 +290,27 @@ async function scoreCustomPredictions(eventId: string): Promise<number> {
     predictionsByEventPredId.get(key)!.push(pred);
   }
 
-  // Calculate correctness in memory
-  const updates: { id: string; isCorrect: boolean }[] = [];
+  // Calculate correctness and points in memory
+  const updates: { id: string; isCorrect: boolean; pointsEarned: number }[] = [];
 
   for (const { eventCustomPrediction, template } of scoredPredictions) {
     const userPreds = predictionsByEventPredId.get(eventCustomPrediction.id) || [];
+    const type = template!.predictionType;
+    const scoringMode = template!.scoringMode ?? 'exact';
 
-    for (const userPrediction of userPreds) {
-      const isCorrect = evaluateCustomPrediction(
-        template!.predictionType,
-        userPrediction,
-        eventCustomPrediction
-      );
-      updates.push({ id: userPrediction.id, isCorrect });
+    if (scoringMode === 'closest_under' && (type === 'count' || type === 'time')) {
+      // Comparative scoring: only the closest prediction(s) without going over win
+      const winnerIds = evaluateClosestUnder(type, userPreds, eventCustomPrediction);
+      for (const userPrediction of userPreds) {
+        const isWinner = winnerIds.has(userPrediction.id);
+        updates.push({ id: userPrediction.id, isCorrect: isWinner, pointsEarned: isWinner ? 1 : 0 });
+      }
+    } else {
+      // Standard per-prediction evaluation
+      for (const userPrediction of userPreds) {
+        const pointsEarned = evaluateCustomPrediction(type, userPrediction, eventCustomPrediction);
+        updates.push({ id: userPrediction.id, isCorrect: pointsEarned > 0, pointsEarned });
+      }
     }
   }
 
@@ -242,7 +320,7 @@ async function scoreCustomPredictions(eventId: string): Promise<number> {
       for (const update of updates) {
         await tx
           .update(userCustomPredictions)
-          .set({ isCorrect: update.isCorrect })
+          .set({ isCorrect: update.isCorrect, pointsEarned: update.pointsEarned })
           .where(eq(userCustomPredictions.id, update.id));
       }
     });
@@ -498,6 +576,15 @@ export const eventService = {
       .where(eq(events.id, id))
       .returning();
 
+    // When locking an event, lock all existing matches so predictions are frozen.
+    // New matches added after locking (surprise matches) will default to unlocked.
+    if (input.status === 'locked' && currentEvent.status !== 'locked') {
+      await db
+        .update(matches)
+        .set({ isLocked: true, ...updatedTimestamp() })
+        .where(eq(matches.eventId, id));
+    }
+
     return updated;
   },
 
@@ -509,7 +596,37 @@ export const eventService = {
     // Ensure event exists
     await ensureExists(events, id, 'Event');
 
-    await db.delete(events).where(eq(events.id, id));
+    // Delete in dependency order within a transaction
+    await withTransaction(async (tx) => {
+      // Get match IDs for this event
+      const eventMatches = await tx.select({ id: matches.id }).from(matches).where(eq(matches.eventId, id));
+      const matchIds = eventMatches.map((m) => m.id);
+
+      if (matchIds.length > 0) {
+        // Delete match leaf tables
+        await tx.delete(matchPredictions).where(inArray(matchPredictions.matchId, matchIds));
+        await tx.delete(matchParticipants).where(inArray(matchParticipants.matchId, matchIds));
+      }
+
+      // Get event custom prediction IDs
+      const ecpRecords = await tx.select({ id: eventCustomPredictions.id }).from(eventCustomPredictions).where(eq(eventCustomPredictions.eventId, id));
+      const ecpIds = ecpRecords.map((e) => e.id);
+
+      if (ecpIds.length > 0) {
+        // Delete user custom predictions
+        await tx.delete(userCustomPredictions).where(inArray(userCustomPredictions.eventCustomPredictionId, ecpIds));
+      }
+
+      // Delete parent tables
+      await tx.delete(eventCustomPredictions).where(eq(eventCustomPredictions.eventId, id));
+      if (matchIds.length > 0) {
+        await tx.delete(matches).where(inArray(matches.id, matchIds));
+      }
+      await tx.delete(userEventJoin).where(eq(userEventJoin.eventId, id));
+
+      // Finally delete the event
+      await tx.delete(events).where(eq(events.id, id));
+    });
   },
 
   /**
@@ -581,7 +698,7 @@ export const eventService = {
     const initScore = (uid: string): UserScore => ({
       userId: uid,
       matchPredictions: { total: 0, correct: 0 },
-      customPredictions: { total: 0, correct: 0 },
+      customPredictions: { total: 0, correct: 0, points: 0 },
       totalScore: 0,
       isContrarian: false,
       didWinContrarian: null,
@@ -614,6 +731,7 @@ export const eventService = {
       if (pred.isCorrect) {
         scoresByUser[pred.userId].customPredictions.correct++;
       }
+      scoresByUser[pred.userId].customPredictions.points += pred.pointsEarned ?? (pred.isCorrect ? 1 : 0);
     }
 
     // Add contrarian status
@@ -628,14 +746,19 @@ export const eventService = {
     for (const id in scoresByUser) {
       const user = scoresByUser[id];
 
-      // For contrarian mode: incorrect predictions count as points
       if (user.isContrarian) {
-        const matchIncorrect = user.matchPredictions.total - user.matchPredictions.correct;
-        const customIncorrect = user.customPredictions.total - user.customPredictions.correct;
-        user.totalScore = matchIncorrect + customIncorrect;
+        if (user.didWinContrarian) {
+          // Won contrarian: all predictions wrong, count incorrect as score
+          const matchIncorrect = user.matchPredictions.total - user.matchPredictions.correct;
+          const customIncorrect = user.customPredictions.total - user.customPredictions.correct;
+          user.totalScore = matchIncorrect + customIncorrect;
+        } else {
+          // Lost contrarian: got a prediction right, zero points
+          user.totalScore = 0;
+        }
       } else {
-        // Normal mode: correct predictions count as points
-        user.totalScore = user.matchPredictions.correct + user.customPredictions.correct;
+        // Normal mode: points earned (supports multi-point wrestler predictions)
+        user.totalScore = user.matchPredictions.correct + user.customPredictions.points;
       }
     }
 
@@ -643,12 +766,12 @@ export const eventService = {
     const userIds = Object.keys(scoresByUser);
     const userRecords = userIds.length > 0
       ? await db
-          .select({ id: users.id, name: users.name, email: users.email })
+          .select({ id: users.id, name: users.name, email: users.email, image: users.image })
           .from(users)
           .where(inArray(users.id, userIds))
       : [];
 
-    const userMap = new Map(userRecords.map(u => [u.id, { name: u.name, email: u.email }]));
+    const userMap = new Map(userRecords.map(u => [u.id, { name: u.name, email: u.email, image: u.image }]));
 
     // Add user info to scores
     for (const id in scoresByUser) {
@@ -658,10 +781,16 @@ export const eventService = {
       }
     }
 
-    // Sort by contrarian winners first, then by total score
+    // Sort: contrarian winners first, then by score, losing contrarians last
     return Object.values(scoresByUser).sort((a, b) => {
+      // Contrarian winners always come first
       if (a.didWinContrarian && !b.didWinContrarian) return -1;
       if (!a.didWinContrarian && b.didWinContrarian) return 1;
+      // Losing contrarians always go last
+      const aLostContrarian = a.isContrarian && a.didWinContrarian === false;
+      const bLostContrarian = b.isContrarian && b.didWinContrarian === false;
+      if (aLostContrarian && !bLostContrarian) return 1;
+      if (!aLostContrarian && bLostContrarian) return -1;
       return b.totalScore - a.totalScore;
     });
   },

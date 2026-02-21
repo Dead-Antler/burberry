@@ -34,6 +34,7 @@ export type User = {
   id: string;
   name: string | null;
   email: string;
+  image?: string | null;
   isAdmin: boolean;
   createdAt: Date | string;
   updatedAt: Date | string;
@@ -52,6 +53,32 @@ export type UpdateUserRequest = {
   password?: string;
   name?: string | null;
   isAdmin?: boolean;
+};
+
+// ============================================================================
+// Profile Types
+// ============================================================================
+
+export type ColorTheme = 'blue' | 'green' | 'neutral' | 'orange' | 'red' | 'rose' | 'violet' | 'yellow';
+
+export type ProfileData = {
+  id: string;
+  name: string | null;
+  email: string;
+  image: string | null;
+  theme: string | null;
+};
+
+export type UpdateProfileRequest = {
+  name?: string | null;
+  email?: string;
+  theme?: ColorTheme;
+};
+
+export type ChangePasswordRequest = {
+  currentPassword: string;
+  newPassword: string;
+  confirmPassword: string;
 };
 
 // ============================================================================
@@ -324,13 +351,59 @@ export type UpdateMatchPredictionRequest = {
 
 export type PredictionType = 'time' | 'count' | 'wrestler' | 'boolean' | 'text';
 
+export type ScoringMode = 'exact' | 'closest_under';
+
 export type CustomPredictionTemplate = {
   id: string;
   name: string;
   description: string | null;
   predictionType: PredictionType;
+  scoringMode: ScoringMode;
+  cooldownDays: number | null;
   createdAt: Date | string;
   updatedAt: Date | string;
+};
+
+export type CreateCustomPredictionTemplateRequest = {
+  name: string;
+  description?: string | null;
+  predictionType: PredictionType;
+  scoringMode?: ScoringMode;
+  cooldownDays?: number | null;
+};
+
+export type UpdateCustomPredictionTemplateRequest = {
+  name?: string;
+  description?: string | null;
+  predictionType?: PredictionType;
+  scoringMode?: ScoringMode;
+  cooldownDays?: number | null;
+};
+
+export type PredictionGroup = {
+  id: string;
+  name: string;
+  createdAt: Date | string;
+  updatedAt: Date | string;
+};
+
+export type PredictionGroupMember = {
+  id: string;
+  groupId: string;
+  templateId: string;
+  createdAt: Date | string;
+};
+
+export type PredictionGroupWithMembers = PredictionGroup & {
+  templates: CustomPredictionTemplate[];
+};
+
+export type CreatePredictionGroupRequest = {
+  name: string;
+};
+
+export type UpdatePredictionGroupRequest = {
+  name?: string;
 };
 
 export type EventCustomPrediction = {
@@ -363,6 +436,7 @@ export type UserCustomPrediction = {
   predictionBoolean: boolean | null;
   predictionText: string | null;
   isCorrect: boolean | null;
+  pointsEarned: number | null;
   createdAt: Date | string;
   updatedAt: Date | string;
 };
@@ -435,6 +509,7 @@ export type UserScore = {
   user?: {
     name: string | null;
     email: string;
+    image?: string | null;
   };
   matchPredictions: {
     total: number;
@@ -443,6 +518,7 @@ export type UserScore = {
   customPredictions: {
     total: number;
     correct: number;
+    points: number;
   };
   totalScore: number;
   isContrarian: boolean;
@@ -456,6 +532,7 @@ export type OverallUserScore = {
   user?: {
     name: string | null;
     email: string;
+    image?: string | null;
   };
   totalPoints: number;
   eventsParticipated: number;
@@ -466,6 +543,7 @@ export type OverallUserScore = {
   customPredictions: {
     total: number;
     correct: number;
+    points: number;
   };
   contrarianWins: number;
   firstPlaceFinishes: number;

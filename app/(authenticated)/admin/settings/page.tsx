@@ -4,7 +4,8 @@ import { useCallback, useEffect, useState } from "react"
 import { Save, RefreshCw } from "lucide-react"
 import { SiteHeader } from "@/app/components/site-header"
 import { Button } from "@/components/ui/button"
-import { ReusablePredictionsEditor } from "@/app/components/settings/reusable-predictions-editor"
+import { CustomPredictionTemplatesEditor } from "@/app/components/settings/reusable-predictions-editor"
+import { PredictionGroupsEditor } from "@/app/components/settings/prediction-groups-editor"
 import { apiClient, ApiClientError } from "@/app/lib/api-client"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -20,12 +21,10 @@ export default function SettingsPage() {
   const [rescoreMessage, setRescoreMessage] = useState<string | null>(null)
 
   // Setting values
-  const [reusablePredictions, setReusablePredictions] = useState<string[]>([])
   const [signupEnabled, setSignupEnabled] = useState(false)
   const [hasChanges, setHasChanges] = useState(false)
 
   // Track original values for change detection
-  const [originalPredictions, setOriginalPredictions] = useState<string[]>([])
   const [originalSignupEnabled, setOriginalSignupEnabled] = useState(false)
 
   const fetchSettings = useCallback(async () => {
@@ -33,14 +32,6 @@ export default function SettingsPage() {
     setError(null)
     try {
       const settings = await apiClient.getSettings()
-
-      // Find the reusable predictions setting
-      const predictionsSetting = settings.find(
-        (s) => s.key === "predictions.reusableTemplates"
-      )
-      const predictions = (predictionsSetting?.value as string[]) || []
-      setReusablePredictions(predictions)
-      setOriginalPredictions(predictions)
 
       // Find the signup enabled setting
       const signupSetting = settings.find(
@@ -65,11 +56,8 @@ export default function SettingsPage() {
 
   // Detect changes
   useEffect(() => {
-    const predictionsChanged =
-      JSON.stringify(reusablePredictions) !== JSON.stringify(originalPredictions)
-    const signupChanged = signupEnabled !== originalSignupEnabled
-    setHasChanges(predictionsChanged || signupChanged)
-  }, [reusablePredictions, originalPredictions, signupEnabled, originalSignupEnabled])
+    setHasChanges(signupEnabled !== originalSignupEnabled)
+  }, [signupEnabled, originalSignupEnabled])
 
   const handleSave = async () => {
     setIsSaving(true)
@@ -77,21 +65,12 @@ export default function SettingsPage() {
     setSaveMessage(null)
 
     try {
-      // Save all settings
-      await Promise.all([
-        apiClient.setSetting(
-          "predictions.reusableTemplates",
-          reusablePredictions,
-          "json"
-        ),
-        apiClient.setSetting(
-          "auth.signupEnabled",
-          signupEnabled,
-          "boolean"
-        ),
-      ])
+      await apiClient.setSetting(
+        "auth.signupEnabled",
+        signupEnabled,
+        "boolean"
+      )
 
-      setOriginalPredictions(reusablePredictions)
       setOriginalSignupEnabled(signupEnabled)
       setHasChanges(false)
       setSaveMessage("Settings saved successfully")
@@ -230,11 +209,10 @@ export default function SettingsPage() {
             {/* Predictions Section */}
             <section>
               <h2 className="text-lg font-semibold mb-4">Predictions</h2>
-              <ReusablePredictionsEditor
-                value={reusablePredictions}
-                onChange={setReusablePredictions}
-                disabled={isSaving}
-              />
+              <CustomPredictionTemplatesEditor />
+              <div className="mt-4">
+                <PredictionGroupsEditor />
+              </div>
             </section>
 
             {/* Admin Tools Section */}

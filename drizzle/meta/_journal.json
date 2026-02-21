@@ -71,6 +71,34 @@
       "when": 1738958400000,
       "tag": "0009_prediction_ui_schema_updates",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "6",
+      "when": 1771654685956,
+      "tag": "0010_prediction-groups",
+      "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "6",
+      "when": 1771740000000,
+      "tag": "0011_wrestler-multiselect",
+      "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "6",
+      "when": 1771826400000,
+      "tag": "0012_scoring-modes",
+      "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "6",
+      "when": 1771912800000,
+      "tag": "0013_user-theme",
+      "breakpoints": true
     }
   ]
 }

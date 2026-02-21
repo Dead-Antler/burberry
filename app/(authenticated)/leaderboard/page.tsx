@@ -7,7 +7,7 @@ import { SiteHeader } from "@/app/components/site-header"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { Avatar, AvatarFallback } from "@/components/ui/avatar"
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import {
@@ -162,17 +162,17 @@ export default function LeaderboardPage() {
             <CardContent>
               <div className="space-y-2">
                 {overallLeaderboard.slice(0, 10).map((score, index) => {
-                  const placement = index + 1
+                  const placement = index === 0 || score.totalPoints !== overallLeaderboard[index - 1].totalPoints
+                    ? index + 1
+                    : overallLeaderboard.findIndex((s) => s.totalPoints === score.totalPoints) + 1
                   const isCurrentUser = session?.user?.id === score.userId
 
                   let bgClass = ''
                   let borderClass = 'border'
-                  let scaleClass = ''
 
                   if (placement === 1) {
                     bgClass = 'bg-gradient-to-r from-yellow-50 to-yellow-100 dark:from-yellow-950/20 dark:to-yellow-900/20'
                     borderClass = 'border-yellow-400 dark:border-yellow-600'
-                    scaleClass = 'scale-[1.02]'
                   } else if (placement === 2) {
                     bgClass = 'bg-gradient-to-r from-slate-50 to-slate-100 dark:from-slate-800/20 dark:to-slate-700/20'
                     borderClass = 'border-slate-400 dark:border-slate-500'
@@ -181,10 +181,12 @@ export default function LeaderboardPage() {
                     borderClass = 'border-orange-400 dark:border-orange-600'
                   }
 
+                  const widthClass = placement === 1 ? 'w-full' : placement === 2 ? 'w-[95%]' : placement === 3 ? 'w-[90%]' : 'w-[85%]'
+
                   return (
                     <div
                       key={score.userId}
-                      className={`flex items-center justify-between p-4 rounded-lg transition-all ${borderClass} ${bgClass} ${scaleClass}`}
+                      className={`flex items-center justify-between p-4 rounded-lg transition-all mx-auto ${widthClass} ${borderClass} ${bgClass}`}
                     >
                       <div className="flex items-center gap-3">
                         <div className={`text-xl font-bold w-8 text-center ${
@@ -196,6 +198,7 @@ export default function LeaderboardPage() {
                           #{placement}
                         </div>
                         <Avatar className="h-10 w-10">
+                          {score.user?.image && <AvatarImage src={score.user.image} alt={score.user.name || score.user.email} />}
                           <AvatarFallback>
                             {score.user?.name?.[0]?.toUpperCase() || score.user?.email[0].toUpperCase() || '?'}
                           </AvatarFallback>
@@ -284,8 +287,11 @@ export default function LeaderboardPage() {
                   {filteredEvents.map(({ event, leaderboard }) => {
               const topThree = leaderboard.slice(0, 3)
               const currentUserScore = leaderboard.find(s => s.userId === session?.user?.id)
+              const currentUserIdx = leaderboard.findIndex(s => s.userId === session?.user?.id)
               const currentUserRank = currentUserScore
-                ? leaderboard.findIndex(s => s.userId === session?.user?.id) + 1
+                ? (currentUserIdx === 0 || leaderboard[currentUserIdx].totalScore !== leaderboard[currentUserIdx - 1].totalScore
+                    ? currentUserIdx + 1
+                    : leaderboard.findIndex(s => s.totalScore === currentUserScore.totalScore) + 1)
                 : null
 
               return (
@@ -325,7 +331,9 @@ export default function LeaderboardPage() {
                         {/* Top 3 Podium */}
                         <div className="grid grid-cols-3 gap-3 mb-4">
                           {topThree.map((score, index) => {
-                            const placement = index + 1
+                            const placement = index === 0 || score.totalScore !== topThree[index - 1].totalScore
+                              ? index + 1
+                              : topThree.findIndex((s) => s.totalScore === score.totalScore) + 1
                             let bgClass = ''
                             let medal = ''
 
@@ -345,11 +353,9 @@ export default function LeaderboardPage() {
                             return (
                               <div
                                 key={score.userId}
-                                className={`p-3 rounded-lg border ${bgClass} ${
-                                  placement === 1 ? 'scale-105' : placement === 2 ? 'scale-[1.02]' : ''
-                                }`}
+                                className={`p-3 rounded-lg border ${bgClass}`}
                               >
-                                <div className="text-center">
+                                <div className="text-center min-w-0">
                                   <div className="text-3xl mb-2">{medal}</div>
                                   <div className="font-medium text-sm mb-1 truncate">
                                     {score.user?.name || score.user?.email || 'Unknown User'}

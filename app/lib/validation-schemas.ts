@@ -191,16 +191,38 @@ export const updateMatchParticipantSchema = z.object({
 // Custom Prediction Template Schemas
 // ============================================================================
 
+const scoringModeSchema = z.enum(['exact', 'closest_under']);
+
 export const createCustomPredictionTemplateSchema = z.object({
   name: z.string().min(1, 'Template name is required').max(100).transform((s) => sanitizeText(s)),
   description: z.string().max(500).transform((s) => sanitizeText(s, 500)).nullable().optional(),
   predictionType: predictionTypeSchema,
+  scoringMode: scoringModeSchema.optional(),
+  cooldownDays: z.number().int().min(1).max(365).nullable().optional(),
 });
 
 export const updateCustomPredictionTemplateSchema = z.object({
   name: z.string().min(1).max(100).transform((s) => sanitizeText(s)).optional(),
   description: z.string().max(500).transform((s) => sanitizeText(s, 500)).nullable().optional(),
   predictionType: predictionTypeSchema.optional(),
+  scoringMode: scoringModeSchema.optional(),
+  cooldownDays: z.number().int().min(1).max(365).nullable().optional(),
+});
+
+// ============================================================================
+// Prediction Group Schemas
+// ============================================================================
+
+export const createPredictionGroupSchema = z.object({
+  name: z.string().min(1, 'Group name is required').max(100).transform((s) => sanitizeText(s)),
+});
+
+export const updatePredictionGroupSchema = z.object({
+  name: z.string().min(1).max(100).transform((s) => sanitizeText(s)).optional(),
+});
+
+export const addPredictionGroupMemberSchema = z.object({
+  templateId: z.string().min(1, 'Template ID is required'),
 });
 
 // ============================================================================
@@ -390,3 +412,26 @@ export const userQuerySchema = z.object({
   search: z.string().max(100).transform((s) => sanitizeText(s, 100)).optional(),
   isAdmin: z.enum(['true', 'false']).transform((v) => v === 'true').optional(),
 });
+
+// ============================================================================
+// Profile Schemas
+// ============================================================================
+
+export const colorThemeSchema = z.enum([
+  'blue', 'green', 'neutral', 'orange', 'red', 'rose', 'violet', 'yellow',
+]);
+
+export const updateProfileSchema = z.object({
+  name: z.string().max(100).transform((s) => sanitizeText(s, 100)).nullable().optional(),
+  email: emailSchema.optional(),
+  theme: colorThemeSchema.optional(),
+});
+
+export const changePasswordSchema = z.object({
+  currentPassword: z.string().min(1, 'Current password is required'),
+  newPassword: z.string().min(8, 'New password must be at least 8 characters').max(128),
+  confirmPassword: z.string().min(1, 'Password confirmation is required'),
+}).refine(
+  (data) => data.newPassword === data.confirmPassword,
+  { message: 'Passwords do not match', path: ['confirmPassword'] }
+);

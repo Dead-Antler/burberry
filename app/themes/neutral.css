@@ -1,0 +1,2 @@
+/* Neutral is the default theme - its values are defined in globals.css (:root and .dark blocks) */
+/* No [data-theme] override needed since neutral is the fallback when no data-theme is set */

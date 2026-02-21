@@ -4,6 +4,8 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { Label } from "@/components/ui/label"
 import { Badge } from "@/components/ui/badge"
 import { Progress } from "@/components/ui/progress"
+import { GroupBadge } from "@/app/components/ui/group-badge"
+import { groupParticipantsBySharedGroups, type ParticipantDisplay } from "@/app/lib/participant-utils"
 import type { MatchWithParticipants, MatchPrediction, MatchPredictionStats } from "@/app/lib/api-types"
 import { getParticipantDisplayName } from "@/app/lib/api-types"
 
@@ -48,6 +50,36 @@ export function TeamMatchPrediction({
     return participants.map((p) => p.name).join(' & ')
   }
 
+  const renderSideParticipants = (side: number) => {
+    const participants: ParticipantDisplay[] = match.participants
+      .filter((p) => p.side === side)
+      .map((p) => ({
+        name: getParticipantDisplayName(p.participant),
+        isChampion: p.isChampion,
+        groups: p.groups || [],
+      }))
+
+    const runs = groupParticipantsBySharedGroups(participants)
+    const result: React.ReactNode[] = []
+    let keyIndex = 0
+
+    for (const run of runs) {
+      for (const p of run.participants) {
+        if (result.length > 0) {
+          result.push(<span key={`sep-${keyIndex++}`} className="text-muted-foreground"> &amp; </span>)
+        }
+        result.push(<span key={`p-${keyIndex++}`}>{p.name}</span>)
+      }
+      for (const g of run.sharedGroups) {
+        result.push(
+          <GroupBadge key={`g-${keyIndex++}-${g.id}`} groupName={g.name} size="md" className="ml-0.5" />
+        )
+      }
+    }
+
+    return result
+  }
+
   const getStatsForSide = (side: number) => {
     if (!stats) return null
     return stats.distribution.find((d) => d.side === side)
@@ -88,9 +120,11 @@ export function TeamMatchPrediction({
               />
               <Label
                 htmlFor={`match-${match.id}-side-${side}`}
-                className="flex-1 cursor-pointer flex items-center gap-2"
+                className="flex-1 cursor-pointer flex items-center gap-2 flex-wrap"
               >
-                <span>{renderSideLabel(side)}</span>
+                <span className="inline-flex items-center flex-wrap gap-0.5">
+                  {renderSideParticipants(side)}
+                </span>
                 {getSideParticipants(side).some((p) => p.isChampion) && (
                   <Badge variant="secondary" className="text-xs" aria-label="Champion">
                     (c)

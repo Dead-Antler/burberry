@@ -9,6 +9,7 @@ import {
 } from "@/components/ui/select"
 import { Badge } from "@/components/ui/badge"
 import { Progress } from "@/components/ui/progress"
+import { GroupBadge } from "@/app/components/ui/group-badge"
 import type { MatchWithParticipants, MatchPrediction, MatchPredictionStats } from "@/app/lib/api-types"
 import { getParticipantDisplayName } from "@/app/lib/api-types"
 
@@ -75,10 +76,13 @@ export function FreeForAllPrediction({
             return (
               <SelectItem key={p.id} value={p.participantId}>
                 <div className="flex items-center gap-2">
-                  <span>
+                  <span className="inline-flex items-center gap-1">
                     {p.name}
                     {p.entryOrder && ` (#${p.entryOrder})`}
                     {p.isChampion && ' (c)'}
+                    {p.groups?.map((g) => (
+                      <GroupBadge key={g.id} groupName={g.name} size="md" />
+                    ))}
                   </span>
                   {isWinner && (
                     <Badge
@@ -105,8 +109,11 @@ export function FreeForAllPrediction({
             .sort((a, b) => b.percentage - a.percentage)
             .map((dist) => (
               <div key={dist.participantId} className="space-y-1 rounded-md py-1 px-2">
-                <div className="font-medium text-xs mb-1">
+                <div className="font-medium text-xs mb-1 flex items-center gap-1">
                   {renderParticipantLabel(dist.participantId!)}
+                  {allParticipants.find((p) => p.participantId === dist.participantId)?.groups?.map((g) => (
+                    <GroupBadge key={g.id} groupName={g.name} size="md" />
+                  ))}
                 </div>
                 <div className="flex items-center justify-between text-xs text-muted-foreground">
                   <span>{dist.percentage}%</span>

@@ -28,6 +28,7 @@ export const GET = apiHandler(async (req: NextRequest, { params }) => {
         id: users.id,
         name: users.name,
         email: users.email,
+        image: users.image,
         role: users.role,
       },
     })
@@ -48,6 +49,7 @@ export const GET = apiHandler(async (req: NextRequest, { params }) => {
       id: join.user.id,
       name: join.user.name,
       email: join.user.email,
+      image: join.user.image,
       isAdmin: join.user.role === 'admin',
       createdAt: new Date(),
       updatedAt: new Date(),

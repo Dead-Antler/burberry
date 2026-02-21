@@ -3,16 +3,22 @@
 import * as React from "react"
 
 type Theme = "light" | "dark" | "system"
+export type ColorTheme = "blue" | "green" | "neutral" | "orange" | "red" | "rose" | "violet" | "yellow"
+
+export const COLOR_THEMES: ColorTheme[] = ["blue", "green", "neutral", "orange", "red", "rose", "violet", "yellow"]
 
 type ThemeProviderContextValue = {
   theme: Theme
   setTheme: (theme: Theme) => void
   resolvedTheme: "light" | "dark"
+  colorTheme: ColorTheme
+  setColorTheme: (theme: ColorTheme) => void
 }
 
 const ThemeProviderContext = React.createContext<ThemeProviderContextValue | undefined>(undefined)
 
 const STORAGE_KEY = "theme"
+const COLOR_THEME_KEY = "color-theme"
 
 function getSystemTheme(): "light" | "dark" {
   if (typeof window === "undefined") return "light"
@@ -22,6 +28,7 @@ function getSystemTheme(): "light" | "dark" {
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
   const [theme, setThemeState] = React.useState<Theme>("system")
   const [resolvedTheme, setResolvedTheme] = React.useState<"light" | "dark">("light")
+  const [colorTheme, setColorThemeState] = React.useState<ColorTheme>("neutral")
   const [mounted, setMounted] = React.useState(false)
 
   // Initialize theme from localStorage on mount
@@ -29,6 +36,10 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     const stored = localStorage.getItem(STORAGE_KEY) as Theme | null
     if (stored && ["light", "dark", "system"].includes(stored)) {
       setThemeState(stored)
+    }
+    const storedColor = localStorage.getItem(COLOR_THEME_KEY) as ColorTheme | null
+    if (storedColor && COLOR_THEMES.includes(storedColor)) {
+      setColorThemeState(storedColor)
     }
     setMounted(true)
   }, [])
@@ -44,6 +55,18 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     root.classList.remove("light", "dark")
     root.classList.add(resolved)
   }, [theme, mounted])
+
+  // Apply color theme attribute
+  React.useEffect(() => {
+    if (!mounted) return
+
+    const root = document.documentElement
+    if (colorTheme === "neutral") {
+      root.removeAttribute("data-theme")
+    } else {
+      root.dataset.theme = colorTheme
+    }
+  }, [colorTheme, mounted])
 
   // Listen for system theme changes
   React.useEffect(() => {
@@ -67,9 +90,19 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     localStorage.setItem(STORAGE_KEY, newTheme)
   }, [])
 
+  const setColorTheme = React.useCallback((newTheme: ColorTheme) => {
+    setColorThemeState(newTheme)
+    localStorage.setItem(COLOR_THEME_KEY, newTheme)
+    if (newTheme === "neutral") {
+      document.documentElement.removeAttribute("data-theme")
+    } else {
+      document.documentElement.dataset.theme = newTheme
+    }
+  }, [])
+
   const value = React.useMemo(
-    () => ({ theme, setTheme, resolvedTheme }),
-    [theme, setTheme, resolvedTheme]
+    () => ({ theme, setTheme, resolvedTheme, colorTheme, setColorTheme }),
+    [theme, setTheme, resolvedTheme, colorTheme, setColorTheme]
   )
 
   return (
