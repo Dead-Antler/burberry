@@ -3,7 +3,7 @@
 import { auth } from '@/app/lib/auth';
 import { headers } from 'next/headers';
 
-export async function logoutAction() {
+export async function logoutAction(): Promise<{ success: true } | { error: string }> {
   try {
     const headersList = await headers();
     // The nextCookies plugin handles cookie clearing automatically

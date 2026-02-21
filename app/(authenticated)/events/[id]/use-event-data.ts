@@ -12,6 +12,7 @@ import type {
   UserCustomPrediction,
   Leaderboard,
   UpdateMatchRequest,
+  UpdateUserCustomPredictionRequest,
 } from "@/app/lib/api-types"
 
 interface UseEventDataReturn {
@@ -34,7 +35,7 @@ interface UseEventDataReturn {
   setIsAnimating: (animating: boolean) => void
   fetchData: () => Promise<void>
   handlePredictionChange: (matchId: string, data: { predictedSide?: number; predictedParticipantId?: string }) => Promise<void>
-  handleCustomPredictionChange: (eventCustomPredictionId: string, data: Record<string, unknown>) => Promise<void>
+  handleCustomPredictionChange: (eventCustomPredictionId: string, data: UpdateUserCustomPredictionRequest) => Promise<void>
   refreshCustomPredictions: () => Promise<void>
   handleMatchUpdate: (matchId: string, data: UpdateMatchRequest) => Promise<void>
   handleCreateSurpriseMatch: () => Promise<void>
@@ -260,7 +261,7 @@ export function useEventData(eventId: string): UseEventDataReturn {
 
   const handleCustomPredictionChange = async (
     eventCustomPredictionId: string,
-    data: Record<string, unknown>
+    data: UpdateUserCustomPredictionRequest
   ) => {
     try {
       const savedPrediction = await apiClient.createUserCustomPrediction({
