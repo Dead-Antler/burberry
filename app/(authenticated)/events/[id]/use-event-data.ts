@@ -148,42 +148,46 @@ export function useEventData(eventId: string): UseEventDataReturn {
       eventSource = new EventSource(`/api/events/${eventId}/live`)
 
       eventSource.addEventListener('update', async (e) => {
-        const data = JSON.parse(e.data)
+        try {
+          const data = JSON.parse(e.data)
 
-        switch (data.type) {
-          case 'event-updated':
-            setEvent(data.event)
-            if (data.event.status === 'completed') {
-              setActiveTab('results')
-              try {
-                const scores = await apiClient.getLeaderboard(eventId)
-                setLeaderboard(scores)
-                setTimeout(() => {
-                  setIsAnimating(true)
-                }, 300)
-              } catch (err) {
-                console.error('Failed to fetch leaderboard:', err)
+          switch (data.type) {
+            case 'event-updated':
+              setEvent(data.event)
+              if (data.event.status === 'completed') {
+                setActiveTab('results')
+                try {
+                  const scores = await apiClient.getLeaderboard(eventId)
+                  setLeaderboard(scores)
+                  setTimeout(() => {
+                    setIsAnimating(true)
+                  }, 300)
+                } catch (err) {
+                  console.error('Failed to fetch leaderboard:', err)
+                }
               }
+              break
+
+            case 'matches-changed': {
+              const eventData = await apiClient.getEvent(eventId, { includeMatches: true })
+              setMatches(eventData.matches || [])
+              break
             }
-            break
 
-          case 'matches-changed': {
-            const eventData = await apiClient.getEvent(eventId, { includeMatches: true })
-            setMatches(eventData.matches || [])
-            break
-          }
+            case 'participants-changed': {
+              const participantsData = await apiClient.getEventParticipants(eventId)
+              setParticipants(participantsData)
+              break
+            }
 
-          case 'participants-changed': {
-            const participantsData = await apiClient.getEventParticipants(eventId)
-            setParticipants(participantsData)
-            break
+            case 'predictions-changed': {
+              const stats = await apiClient.getEventPredictionStats(eventId)
+              setPredictionStats(stats)
+              break
+            }
           }
-
-          case 'predictions-changed': {
-            const stats = await apiClient.getEventPredictionStats(eventId)
-            setPredictionStats(stats)
-            break
-          }
+        } catch (err) {
+          console.error('[SSE] Error handling update event:', err)
         }
       })
 

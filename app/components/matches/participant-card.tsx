@@ -221,6 +221,7 @@ export function ParticipantCard({
             size="icon"
             className="h-6 w-6 shrink-0"
             disabled={isLoading}
+            aria-label="Participant actions"
           >
             {isMoving ? (
               <Loader2 className="h-3 w-3 animate-spin" />

@@ -129,23 +129,43 @@ export async function GET(
           }
           lastEventUpdatedAt = currentEvent.updatedAt || null;
 
-          // Check for match changes (additions, deletions, reordering, results, or participants)
-          const currentMatches = await db
-            .select()
-            .from(matches)
-            .where(eq(matches.eventId, eventId));
+          // Fetch matches and user event joins in parallel (both depend only on eventId)
+          const [currentMatches, currentParticipants] = await Promise.all([
+            db.select().from(matches).where(eq(matches.eventId, eventId)),
+            db.select().from(userEventJoin).where(eq(userEventJoin.eventId, eventId)),
+          ]);
 
-          // Get all match participants to detect participant changes
+          // Check for user event join changes
+          if (currentParticipants.length !== lastParticipantCount) {
+            sendEvent({
+              type: 'participants-changed',
+              count: currentParticipants.length,
+            }, 'update');
+            lastParticipantCount = currentParticipants.length;
+          }
+
+          // Fetch match participants and predictions in parallel (both depend on matchIds)
           const matchIds = currentMatches.map(m => m.id);
-          const currentParticipantsData = matchIds.length > 0
-            ? await db
-                .select()
-                .from(matchParticipants)
-                .where(inArray(matchParticipants.matchId, matchIds))
-            : [];
+          const [currentParticipantsData, allPredictions] = await Promise.all([
+            matchIds.length > 0
+              ? db.select().from(matchParticipants).where(inArray(matchParticipants.matchId, matchIds))
+              : Promise.resolve([] as (typeof matchParticipants.$inferSelect)[]),
+            matchIds.length > 0
+              ? db
+                  .select({
+                    id: matchPredictions.id,
+                    matchId: matchPredictions.matchId,
+                    userId: matchPredictions.userId,
+                    predictedSide: matchPredictions.predictedSide,
+                    predictedParticipantId: matchPredictions.predictedParticipantId,
+                    updatedAt: matchPredictions.updatedAt,
+                  })
+                  .from(matchPredictions)
+                  .where(inArray(matchPredictions.matchId, matchIds))
+              : Promise.resolve([] as { id: string; matchId: string; userId: string; predictedSide: number | null; predictedParticipantId: string | null; updatedAt: Date | null }[]),
+          ]);
 
-          // Create a hash that includes match properties AND participants
-          // This will detect new matches, reordering, locking, result updates, and participant changes
+          // Check for match changes (includes participant changes in hash)
           const participantHash = currentParticipantsData
             .map(p => `${p.matchId}:${p.participantType}:${p.participantId}:${p.side}:${p.entryOrder}`)
             .sort()
@@ -163,38 +183,8 @@ export async function GET(
             lastMatchHash = matchHash;
           }
 
-          // Check for new participants
-          const currentParticipants = await db
-            .select()
-            .from(userEventJoin)
-            .where(eq(userEventJoin.eventId, eventId));
-
-          if (currentParticipants.length !== lastParticipantCount) {
-            sendEvent({
-              type: 'participants-changed',
-              count: currentParticipants.length,
-            }, 'update');
-            lastParticipantCount = currentParticipants.length;
-          }
-
-          // Check for prediction changes (across ALL matches in the event)
-          // (reusing matchIds from above)
+          // Check for prediction changes
           if (matchIds.length > 0) {
-            // Get all predictions for all matches in this event
-            const allPredictions = await db
-              .select({
-                id: matchPredictions.id,
-                matchId: matchPredictions.matchId,
-                userId: matchPredictions.userId,
-                predictedSide: matchPredictions.predictedSide,
-                predictedParticipantId: matchPredictions.predictedParticipantId,
-                updatedAt: matchPredictions.updatedAt,
-              })
-              .from(matchPredictions)
-              .where(inArray(matchPredictions.matchId, matchIds)); // Check ALL matches
-
-            // Create a hash of predictions to detect ANY changes (not just count)
-            // This will catch both new predictions AND updated predictions
             const predictionHash = allPredictions
               .map(p => `${p.matchId}:${p.userId}:${p.predictedSide}:${p.predictedParticipantId}`)
               .sort()

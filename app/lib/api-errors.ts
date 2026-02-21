@@ -60,8 +60,7 @@ export function getErrorMessage(
   if (typeof error === 'string' && error in API_ERRORS) {
     const message = API_ERRORS[error as keyof typeof API_ERRORS];
     if (typeof message === 'function') {
-      // TODO: type message map return types to eliminate this cast
-      return (message as any)(...args); // eslint-disable-line @typescript-eslint/no-explicit-any
+      return (message as (...args: unknown[]) => string)(...args);
     }
     return message;
   }

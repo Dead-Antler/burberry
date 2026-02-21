@@ -80,6 +80,7 @@ export function CountInput({
         className="w-24"
         placeholder="0"
         disabled={isLocked || isSaving}
+        aria-label="Prediction count"
       />
       <Button
         size="sm"
@@ -171,6 +172,7 @@ export function TextInput({
         placeholder="Enter your prediction..."
         maxLength={200}
         disabled={isLocked || isSaving}
+        aria-label="Your prediction"
       />
       <Button
         size="sm"
@@ -219,6 +221,7 @@ export function TimeInput({
           placeholder="e.g., 1:30:00 or 45:00"
           className="w-36"
           disabled={isLocked || isSaving}
+          aria-label="Match duration"
           onKeyDown={(e) => {
             if (e.key === "Enter") {
               e.preventDefault()
