@@ -2,7 +2,6 @@ import { NextRequest } from 'next/server';
 import {
   apiHandler,
   apiSuccess,
-  apiSuccessCached,
   parseBodyWithSchema,
   parseQueryWithSchema,
   createPaginatedResponse,
@@ -30,7 +29,7 @@ export const GET = apiHandler(async (req: NextRequest) => {
     search: query.search,
   });
 
-  return apiSuccessCached(createPaginatedResponse(data, total, pagination));
+  return apiSuccess(createPaginatedResponse(data, total, pagination));
 });
 
 /**

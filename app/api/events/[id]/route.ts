@@ -1,5 +1,5 @@
 import { NextRequest } from 'next/server';
-import { apiHandler, apiSuccess, apiSuccessCached, apiError, parseBodyWithSchema, parseQueryWithSchema } from '@/app/lib/api-helpers';
+import { apiHandler, apiSuccess, apiError, parseBodyWithSchema, parseQueryWithSchema } from '@/app/lib/api-helpers';
 import { updateEventSchema, eventDetailQuerySchema } from '@/app/lib/validation-schemas';
 import { eventService } from '@/app/lib/services/event.service';
 
@@ -23,7 +23,7 @@ export const GET = apiHandler(async (req: NextRequest, { params }) => {
     includeCustomPredictions: query.includeCustomPredictions,
   });
 
-  return apiSuccessCached(event);
+  return apiSuccess(event);
 });
 
 /**

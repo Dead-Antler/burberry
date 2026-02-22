@@ -1,5 +1,5 @@
 import { NextRequest } from 'next/server';
-import { apiHandler, apiSuccess, apiSuccessCached, apiError } from '@/app/lib/api-helpers';
+import { apiHandler, apiSuccess, apiError } from '@/app/lib/api-helpers';
 import { eventService } from '@/app/lib/services/event.service';
 
 /**
@@ -38,5 +38,5 @@ export const GET = apiHandler(async (req: NextRequest, { params }) => {
     ? await eventService.getUserScore(params.id, userId)
     : await eventService.getScores(params.id);
 
-  return apiSuccessCached(scores);
+  return apiSuccess(scores);
 });
