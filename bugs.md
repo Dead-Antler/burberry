@@ -1,7 +1,0 @@
-Bugs when testing:
-
-1. When creating an event, setting the event to `Pending" gives the error: Validation failed: status: Invalid option: expected one of "open"|"locked"|"completed"`
-
-2. Setting the event to "Open" lets me create it. Browsing to that event gives the error `Internal server error: Failed query: select "id", "eventId", "matchType", "matchOrder", "unknownParticipants", "isLocked", "predictionDeadline", "outcome", "winningSide", "winnerParticipantId", "createdAt", "updatedAt" from "matches" where "matches"."eventId" = ? order by "matches"."matchOrder" params: event_746c9c09-e7ad-4755-b459-7cc30b6df018`
-
-3. Attempting to add a match to that event gives the error `Internal server error: Failed query: insert into "matches" ("id", "eventId", "matchType", "matchOrder", "unknownParticipants", "isLocked", "predictionDeadline", "outcome", "winningSide", "winnerParticipantId", "createdAt", "updatedAt") values (?, ?, ?, ?, ?, ?, null, ?, ?, ?, ?, ?) returning "id", "eventId", "matchType", "matchOrder", "unknownParticipants", "isLocked", "predictionDeadline", "outcome", "winningSide", "winnerParticipantId", "createdAt", "updatedAt" params: match_1a342139-e944-47d2-ae0f-cecd16f78909,event_746c9c09-e7ad-4755-b459-7cc30b6df018,Singles,1,0,0,,,,1771406054445,1771406054445`

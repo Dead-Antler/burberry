@@ -39,7 +39,7 @@ function createProductionDb() {
   });
 
   return drizzle(client, {
-    logger: process.env.NODE_ENV === 'development',
+    logger: process.env.DB_LOGGING === 'true',
   });
 }
 
