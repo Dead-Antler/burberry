@@ -58,29 +58,25 @@ export default function EntityPage() {
 Wrap tables in a Card with no padding:
 
 ```tsx
-<Card className="py-0 overflow-hidden">
-  <CardContent className="p-0">
+<Card className='py-0 overflow-hidden'>
+  <CardContent className='p-0'>
     <Table>
       <TableHeader>
         <TableRow>
           <TableHead>Name</TableHead>
-          <TableHead className="hidden sm:table-cell">Created</TableHead>
-          <TableHead className="hidden md:table-cell">Updated</TableHead>
-          <TableHead className="w-[70px]">
-            <span className="sr-only">Actions</span>
+          <TableHead className='hidden sm:table-cell'>Created</TableHead>
+          <TableHead className='hidden md:table-cell'>Updated</TableHead>
+          <TableHead className='w-17.5'>
+            <span className='sr-only'>Actions</span>
           </TableHead>
         </TableRow>
       </TableHeader>
       <TableBody>
         {items.map((item) => (
           <TableRow key={item.id}>
-            <TableCell className="font-medium">{item.name}</TableCell>
-            <TableCell className="hidden sm:table-cell text-muted-foreground">
-              {formatDate(item.createdAt)}
-            </TableCell>
-            <TableCell className="hidden md:table-cell text-muted-foreground">
-              {formatDate(item.updatedAt)}
-            </TableCell>
+            <TableCell className='font-medium'>{item.name}</TableCell>
+            <TableCell className='hidden sm:table-cell text-muted-foreground'>{formatDate(item.createdAt)}</TableCell>
+            <TableCell className='hidden md:table-cell text-muted-foreground'>{formatDate(item.updatedAt)}</TableCell>
             <TableCell>
               <ActionsDropdown item={item} />
             </TableCell>
@@ -96,12 +92,12 @@ Wrap tables in a Card with no padding:
 
 Hide less important columns on smaller screens:
 
-| Breakpoint | Class | Visible |
-|------------|-------|---------|
-| Always | (none) | Primary column (name) |
-| sm (640px+) | `hidden sm:table-cell` | Secondary info |
-| md (768px+) | `hidden md:table-cell` | Tertiary info |
-| lg (1024px+) | `hidden lg:table-cell` | Optional details |
+| Breakpoint   | Class                  | Visible               |
+| ------------ | ---------------------- | --------------------- |
+| Always       | (none)                 | Primary column (name) |
+| sm (640px+)  | `hidden sm:table-cell` | Secondary info        |
+| md (768px+)  | `hidden md:table-cell` | Tertiary info         |
+| lg (1024px+) | `hidden lg:table-cell` | Optional details      |
 
 ### Row Actions
 
@@ -110,20 +106,22 @@ Use DropdownMenu for row actions:
 ```tsx
 <DropdownMenu>
   <DropdownMenuTrigger asChild>
-    <Button variant="ghost" size="icon" aria-label={`Actions for ${item.name}`}>
-      <MoreHorizontal className="h-4 w-4" />
+    <Button
+      variant='ghost'
+      size='icon'
+      aria-label={`Actions for ${item.name}`}>
+      <MoreHorizontal className='h-4 w-4' />
     </Button>
   </DropdownMenuTrigger>
-  <DropdownMenuContent align="end">
+  <DropdownMenuContent align='end'>
     <DropdownMenuItem onClick={() => onEdit(item)}>
-      <Pencil className="mr-2 h-4 w-4" />
+      <Pencil className='mr-2 h-4 w-4' />
       Edit
     </DropdownMenuItem>
     <DropdownMenuItem
       onClick={() => onDelete(item)}
-      className="text-destructive focus:text-destructive"
-    >
-      <Trash2 className="mr-2 h-4 w-4" />
+      className='text-destructive focus:text-destructive'>
+      <Trash2 className='mr-2 h-4 w-4' />
       Delete
     </DropdownMenuItem>
   </DropdownMenuContent>
@@ -138,34 +136,36 @@ Use a single Dialog component for both create and edit:
 
 ```tsx
 interface EntityDialogProps {
-  open: boolean
-  onOpenChange: (open: boolean) => void
-  entity?: Entity | null  // null/undefined = create mode
-  onSuccess: (entity: Entity) => void
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  entity?: Entity | null; // null/undefined = create mode
+  onSuccess: (entity: Entity) => void;
 }
 
 export function EntityDialog({ open, onOpenChange, entity, onSuccess }: EntityDialogProps) {
-  const isEditing = entity !== null && entity !== undefined
-  const [name, setName] = useState("")
-  const [isSubmitting, setIsSubmitting] = useState(false)
-  const [error, setError] = useState<string | null>(null)
+  const isEditing = entity !== null && entity !== undefined;
+  const [name, setName] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   // Reset form when dialog opens
   useEffect(() => {
     if (open) {
-      setName(entity?.name ?? "")
-      setError(null)
+      setName(entity?.name ?? "");
+      setError(null);
     }
-  }, [open, entity])
+  }, [open, entity]);
 
   const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
+    e.preventDefault();
     // Validation, API call, error handling...
-  }
+  };
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[425px]">
+    <Dialog
+      open={open}
+      onOpenChange={onOpenChange}>
+      <DialogContent className='sm:max-w-106.25'>
         <form onSubmit={handleSubmit}>
           <DialogHeader>
             <DialogTitle>{isEditing ? "Edit Entity" : "Create Entity"}</DialogTitle>
@@ -173,25 +173,40 @@ export function EntityDialog({ open, onOpenChange, entity, onSuccess }: EntityDi
               {isEditing ? "Update the entity details." : "Enter details for the new entity."}
             </DialogDescription>
           </DialogHeader>
-          <div className="grid gap-4 py-4">
-            <div className="space-y-2">
-              <Label htmlFor="name">Name</Label>
-              <Input id="name" value={name} onChange={(e) => setName(e.target.value)} />
+          <div className='grid gap-4 py-4'>
+            <div className='space-y-2'>
+              <Label htmlFor='name'>Name</Label>
+              <Input
+                id='name'
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+              />
             </div>
-            {error && <p className="text-sm text-destructive" role="alert">{error}</p>}
+            {error && (
+              <p
+                className='text-sm text-destructive'
+                role='alert'>
+                {error}
+              </p>
+            )}
           </div>
           <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
+            <Button
+              type='button'
+              variant='outline'
+              onClick={() => onOpenChange(false)}>
               Cancel
             </Button>
-            <Button type="submit" disabled={isSubmitting}>
+            <Button
+              type='submit'
+              disabled={isSubmitting}>
               {isSubmitting ? "Saving..." : isEditing ? "Save Changes" : "Create"}
             </Button>
           </DialogFooter>
         </form>
       </DialogContent>
     </Dialog>
-  )
+  );
 }
 ```
 
@@ -200,7 +215,9 @@ export function EntityDialog({ open, onOpenChange, entity, onSuccess }: EntityDi
 Use AlertDialog for destructive actions:
 
 ```tsx
-<AlertDialog open={open} onOpenChange={onOpenChange}>
+<AlertDialog
+  open={open}
+  onOpenChange={onOpenChange}>
   <AlertDialogContent>
     <AlertDialogHeader>
       <AlertDialogTitle>Delete Entity</AlertDialogTitle>
@@ -208,14 +225,19 @@ Use AlertDialog for destructive actions:
         Are you sure you want to delete "{entity?.name}"? This action cannot be undone.
       </AlertDialogDescription>
     </AlertDialogHeader>
-    {error && <p className="text-sm text-destructive" role="alert">{error}</p>}
+    {error && (
+      <p
+        className='text-sm text-destructive'
+        role='alert'>
+        {error}
+      </p>
+    )}
     <AlertDialogFooter>
       <AlertDialogCancel disabled={isDeleting}>Cancel</AlertDialogCancel>
       <AlertDialogAction
         onClick={handleDelete}
         disabled={isDeleting}
-        className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-      >
+        className='bg-destructive text-destructive-foreground hover:bg-destructive/90'>
         {isDeleting ? "Deleting..." : "Delete"}
       </AlertDialogAction>
     </AlertDialogFooter>
@@ -227,16 +249,16 @@ Use AlertDialog for destructive actions:
 
 ```tsx
 const handleDelete = async () => {
-  setIsDeleting(true)
+  setIsDeleting(true);
   try {
-    await apiClient.deleteEntity(entity.id)
-    setIsDeleting(false)  // Reset BEFORE calling onSuccess
-    onSuccess(entity.id)
+    await apiClient.deleteEntity(entity.id);
+    setIsDeleting(false); // Reset BEFORE calling onSuccess
+    onSuccess(entity.id);
   } catch (err) {
-    setError(err.message)
-    setIsDeleting(false)
+    setError(err.message);
+    setIsDeleting(false);
   }
-}
+};
 ```
 
 ## State Management
@@ -246,52 +268,52 @@ const handleDelete = async () => {
 Use client components with useState for managing:
 
 ```tsx
-"use client"
+"use client";
 
 export default function EntityPage() {
   // Data state
-  const [entities, setEntities] = useState<Entity[]>([])
-  const [isLoading, setIsLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
+  const [entities, setEntities] = useState<Entity[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   // Dialog states
-  const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false)
-  const [editingEntity, setEditingEntity] = useState<Entity | null>(null)
-  const [deletingEntity, setDeletingEntity] = useState<Entity | null>(null)
+  const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
+  const [editingEntity, setEditingEntity] = useState<Entity | null>(null);
+  const [deletingEntity, setDeletingEntity] = useState<Entity | null>(null);
 
   // Fetch data on mount
   const fetchEntities = useCallback(async () => {
-    setIsLoading(true)
-    setError(null)
+    setIsLoading(true);
+    setError(null);
     try {
-      const data = await apiClient.getEntities()
-      setEntities(data)
+      const data = await apiClient.getEntities();
+      setEntities(data);
     } catch (err) {
-      setError(err instanceof ApiClientError ? err.message : "Failed to load")
+      setError(err instanceof ApiClientError ? err.message : "Failed to load");
     } finally {
-      setIsLoading(false)
+      setIsLoading(false);
     }
-  }, [])
+  }, []);
 
   useEffect(() => {
-    fetchEntities()
-  }, [fetchEntities])
+    fetchEntities();
+  }, [fetchEntities]);
 
   // Optimistic updates after mutations
   const handleCreateSuccess = (entity: Entity) => {
-    setEntities((prev) => [...prev, entity])
-    setIsCreateDialogOpen(false)
-  }
+    setEntities((prev) => [...prev, entity]);
+    setIsCreateDialogOpen(false);
+  };
 
   const handleEditSuccess = (updated: Entity) => {
-    setEntities((prev) => prev.map((e) => e.id === updated.id ? updated : e))
-    setEditingEntity(null)
-  }
+    setEntities((prev) => prev.map((e) => (e.id === updated.id ? updated : e)));
+    setEditingEntity(null);
+  };
 
   const handleDeleteSuccess = (deletedId: string) => {
-    setEntities((prev) => prev.filter((e) => e.id !== deletedId))
-    setDeletingEntity(null)
-  }
+    setEntities((prev) => prev.filter((e) => e.id !== deletedId));
+    setDeletingEntity(null);
+  };
 }
 ```
 
@@ -300,12 +322,12 @@ export default function EntityPage() {
 Always use the typed `apiClient` from `@/app/lib/api-client`:
 
 ```tsx
-import { apiClient, ApiClientError } from "@/app/lib/api-client"
+import { apiClient, ApiClientError } from "@/app/lib/api-client";
 
 try {
-  const result = await apiClient.createEntity({ name: "Test" })
+  const result = await apiClient.createEntity({ name: "Test" });
 } catch (err) {
-  const message = err instanceof ApiClientError ? err.message : "Something went wrong"
+  const message = err instanceof ApiClientError ? err.message : "Something went wrong";
 }
 ```
 
@@ -328,14 +350,18 @@ function TableSkeleton() {
       <TableBody>
         {Array.from({ length: 5 }).map((_, i) => (
           <TableRow key={i}>
-            <TableCell><Skeleton className="h-5 w-32" /></TableCell>
-            <TableCell><Skeleton className="h-5 w-24" /></TableCell>
+            <TableCell>
+              <Skeleton className='h-5 w-32' />
+            </TableCell>
+            <TableCell>
+              <Skeleton className='h-5 w-24' />
+            </TableCell>
             {/* ... */}
           </TableRow>
         ))}
       </TableBody>
     </Table>
-  )
+  );
 }
 ```
 
@@ -347,12 +373,16 @@ Show error message with retry button:
 if (error) {
   return (
     <Card>
-      <CardContent className="flex flex-col items-center justify-center py-10">
-        <p className="text-sm text-destructive mb-4">{error}</p>
-        <Button variant="outline" onClick={onRetry}>Try Again</Button>
+      <CardContent className='flex flex-col items-center justify-center py-10'>
+        <p className='text-sm text-destructive mb-4'>{error}</p>
+        <Button
+          variant='outline'
+          onClick={onRetry}>
+          Try Again
+        </Button>
       </CardContent>
     </Card>
-  )
+  );
 }
 ```
 
@@ -364,13 +394,11 @@ Helpful message when no data exists:
 if (entities.length === 0) {
   return (
     <Card>
-      <CardContent className="flex flex-col items-center justify-center py-10">
-        <p className="text-sm text-muted-foreground">
-          No entities found. Create your first entity to get started.
-        </p>
+      <CardContent className='flex flex-col items-center justify-center py-10'>
+        <p className='text-sm text-muted-foreground'>No entities found. Create your first entity to get started.</p>
       </CardContent>
     </Card>
-  )
+  );
 }
 ```
 
@@ -387,30 +415,47 @@ if (entities.length === 0) {
 ### Example
 
 ```tsx
-{/* Icon button with aria-label */}
-<Button variant="ghost" size="icon" aria-label={`Actions for ${item.name}`}>
-  <MoreHorizontal className="h-4 w-4" />
-</Button>
+{
+  /* Icon button with aria-label */
+}
+<Button
+  variant='ghost'
+  size='icon'
+  aria-label={`Actions for ${item.name}`}>
+  <MoreHorizontal className='h-4 w-4' />
+</Button>;
 
-{/* Visually hidden table header */}
-<TableHead className="w-[70px]">
-  <span className="sr-only">Actions</span>
-</TableHead>
+{
+  /* Visually hidden table header */
+}
+<TableHead className='w-17.5'>
+  <span className='sr-only'>Actions</span>
+</TableHead>;
 
-{/* Error with role="alert" */}
-{error && <p className="text-sm text-destructive" role="alert">{error}</p>}
+{
+  /* Error with role="alert" */
+}
+{
+  error && (
+    <p
+      className='text-sm text-destructive'
+      role='alert'>
+      {error}
+    </p>
+  );
+}
 ```
 
 ## Spacing Conventions
 
-| Use Case | Class |
-|----------|-------|
-| Label + Input pairs | `space-y-2` |
-| Form sections | `space-y-4` or `grid gap-4` |
-| Page sections | `gap-4` |
-| Page padding | `p-4` |
-| Card content padding | `px-6` (default), `p-0` for tables |
-| Centered empty/error states | `py-10` |
+| Use Case                    | Class                              |
+| --------------------------- | ---------------------------------- |
+| Label + Input pairs         | `space-y-2`                        |
+| Form sections               | `space-y-4` or `grid gap-4`        |
+| Page sections               | `gap-4`                            |
+| Page padding                | `p-4`                              |
+| Card content padding        | `px-6` (default), `p-0` for tables |
+| Centered empty/error states | `py-10`                            |
 
 ## File Organization
 

@@ -160,9 +160,31 @@ See [docs/API.md](docs/API.md) for complete endpoint documentation.
 bun dev                    # Start dev server
 bun db:generate            # Generate migration from schema changes
 bun db:migrate             # Apply migrations
+bun db:validate            # Validate migration files for common issues
 bun db:studio              # Browse database
 bun run build              # Production build
+bun run docker:build       # Build Docker image locally
 ```
+
+## Database Migrations
+
+**Always prefer `bun db:generate` over hand-writing SQL migrations.** The workflow:
+
+1. Modify `app/lib/schema.ts` with the desired changes
+2. **Ask the user to run `bun db:generate`** — Claude cannot run this reliably in all environments
+3. Run `bun db:validate` to verify the generated migration
+4. Run `bun db:migrate` to apply
+
+**If a manual migration is unavoidable** (e.g., complex data migration, table rename with data copy):
+
+- Every SQL statement must be separated by `--> statement-breakpoint` (SQLite only executes the first statement in a multi-statement string)
+- Add the entry to `drizzle/meta/_journal.json` with a `when` timestamp strictly greater than the previous entry
+- Run `bun db:validate` to catch breakpoint and timestamp issues
+
+**Common pitfalls:**
+- Missing `--> statement-breakpoint` between ALTER/CREATE/DROP statements — second statement is silently dropped
+- Out-of-order `when` timestamps in `_journal.json` — migration will be permanently skipped on existing databases
+- The programmatic migrator (`drizzle-orm/libsql/migrator`) only compares timestamps, not migration names
 
 ## Environment Variables
 

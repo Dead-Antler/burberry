@@ -4,14 +4,13 @@ A Next.js 16 application with secure authentication and a comprehensive wrestlin
 
 ## Features
 
-- 🔐 **Secure Authentication** - Database-backed sessions with Scrypt password hashing
-- 👥 **Role-Based Access Control** - Admin and normal user permissions
-- 🎯 **Match Predictions** - Predict winners for any match type (singles, tag, multi-team, battle royal)
-- 🎲 **Custom Predictions** - Create custom prediction questions (time, count, wrestler, boolean, text)
-- 🔄 **Contrarian Mode** - Try to get everything wrong and auto-win
-- 📊 **Scoring System** - Automated scoring with leaderboards
-- 🌐 **RESTful API** - ~70 endpoints with full CRUD operations
-- 📱 **Auto-Refresh Ready** - API designed for real-time UI updates
+- **Secure Authentication** - Database-backed sessions with Scrypt password hashing
+- **Role-Based Access Control** - Admin and normal user permissions
+- **Match Predictions** - Predict winners for any match type (singles, tag, multi-team, battle royal)
+- **Custom Predictions** - Create custom prediction questions (time, count, wrestler, boolean, text)
+- **Contrarian Mode** - Try to get everything wrong and auto-win
+- **Scoring System** - Automated scoring with leaderboards
+- **RESTful API** - ~70 endpoints with full CRUD operations
 
 ## Tech Stack
 
@@ -22,166 +21,148 @@ A Next.js 16 application with secure authentication and a comprehensive wrestlin
 - **UI**: shadcn/ui + Tailwind CSS 4
 - **Language**: TypeScript
 
-## Quick Start
+## Quick Start (Local Development)
 
 ```bash
 # Install dependencies
 bun install
 
+# Copy environment file and fill in values
+cp .env.example .env
+# Edit .env — at minimum, generate AUTH_SECRET:
+#   openssl rand -base64 32
+
 # Run database migrations
 bun db:migrate
 
-# Seed initial data (brands, prediction templates)
-bunx tsx scripts/seed-wrestling-data.ts
+# Seed initial data — optional, creates brands and prediction templates
+bun db:seed
 
-# Start development server (creates admin user automatically on first run)
+# Start development server
 bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) and login with your created user.
+Open [http://localhost:3000](http://localhost:3000). On first startup with an empty database, an admin account is created automatically if `ADMIN_EMAIL` is set — the credentials are printed to the console.
 
-## Project Structure
+## Running with Docker
 
+### Docker Compose (recommended)
+
+```bash
+# Set required secrets
+export AUTH_SECRET=$(openssl rand -base64 32)
+
+# Start the container
+docker compose up -d
+
+# View logs (admin credentials are printed on first run)
+docker compose logs -f
 ```
-burberry/
-├── app/
-│   ├── api/              # ~70 RESTful API endpoints
-│   ├── lib/              # API helpers, types, database
-│   └── ...
-├── docs/                 # 📚 Detailed documentation
-│   ├── API.md           # Complete API reference
-│   ├── ADMIN_PERMISSIONS_PLAN.md
-│   └── ADMIN_IMPLEMENTATION_COMPLETE.md
-├── scripts/              # Utility scripts
-└── CLAUDE.md            # System architecture & design decisions
+
+See [docker-compose.yml](docker-compose.yml) for the full configuration.
+
+### Docker Run
+
+```bash
+docker run -d \
+  --name burberry \
+  -p 3000:3000 \
+  -e AUTH_SECRET=$(openssl rand -base64 32) \
+  -e DB_FILE_NAME=file:data/database.db \
+  -e AUTH_URL=http://localhost:3000 \
+  -e ADMIN_EMAIL=admin@example.com \
+  -v burberry-data:/app/data \
+  ghcr.io/dead-antler/burberry:latest
 ```
 
-## Documentation
+### Building the image locally
 
-- **[docs/API.md](docs/API.md)** - Complete API reference with all endpoints
-- **[CLAUDE.md](CLAUDE.md)** - System architecture and design decisions
-- **[docs/README.md](docs/README.md)** - Documentation index and navigation guide
+```bash
+bun run docker:build
+```
+
+Database migrations run automatically on container startup. The SQLite database is stored in the `/app/data` volume, so it persists across container restarts and image upgrades.
+
+Utility scripts are available inside the container:
+
+```bash
+docker exec burberry bun scripts/seed.ts    # Seed initial data
+docker exec burberry bun scripts/reset.ts   # Reset data (preserves users)
+```
+
+## Environment Variables
+
+| Variable         | Required | Default    | Description                                                                          |
+| ---------------- | -------- | ---------- | ------------------------------------------------------------------------------------ |
+| `DB_FILE_NAME`   | Yes      | —          | SQLite connection string, e.g. `file:data/database.db`                               |
+| `AUTH_SECRET`    | Yes      | —          | Session signing secret, min 32 chars. Generate: `openssl rand -base64 32`            |
+| `AUTH_URL`       | Yes      | —          | Public URL of the application, e.g. `http://localhost:3000`                          |
+| `ADMIN_EMAIL`    | No       | —          | Email for auto-created admin account on first startup                                |
+| `ADMIN_PASSWORD` | No       | _(random)_ | Admin password. If unset, randomly generated and printed to console on first startup |
+| `DB_LOGGING`     | No       | `false`    | Enable Drizzle ORM query logging                                                     |
+| `PUID`           | No       | `1001`     | User ID for the container process (Docker only)                                      |
+| `PGID`           | No       | `1001`     | Group ID for the container process (Docker only)                                     |
+
+See [.env.example](.env.example) for a copyable template with comments.
+
+## Development
+
+```bash
+bun dev                    # Start dev server
+bun db:generate            # Generate migration from schema changes
+bun db:migrate             # Apply migrations
+bun db:validate            # Validate migration files for common issues
+bun db:seed                # Seed initial data (brands, prediction templates)
+bun db:studio              # Browse database
+bun test                   # Run tests
+bun run build              # Production build
+bun run docker:build       # Build Docker image locally
+```
 
 ## Key Concepts
 
 ### User Roles
 
 **Normal Users** can:
+
 - View all data (brands, wrestlers, events, matches)
 - Make and manage their own predictions
 - View leaderboards and scores
 
 **Admins** can:
+
 - Everything normal users can do, PLUS:
 - Create/update/delete all entities
 - Enter match results
 - Trigger event scoring
-- Manage events (change status from open → locked → completed)
+- Manage events (change status from open -> locked -> completed)
 
 ### Event Lifecycle
 
-1. **Open** - Admin creates event, adds matches → Users make predictions
-2. **Locked** - Event started, predictions closed → Admin enters results during event
-3. **Completed** - Results finalized → Admin triggers scoring → Leaderboard available
-
-### API Structure
-
-All business logic is encapsulated in the RESTful API:
-- **~70 total endpoints**
-- **28 admin-only endpoints** (marked with `[ADMIN ONLY]` in docs)
-- **Type-safe** with TypeScript throughout
-
-See [docs/API.md](docs/API.md) for complete reference.
+1. **Open** - Admin creates event, adds matches. Users make predictions.
+2. **Locked** - Event started, predictions closed. Admin enters results during event.
+3. **Completed** - Results finalized. Admin triggers scoring. Leaderboard available.
 
 ## Common Tasks
 
-### Initial Admin User
-On first startup with an empty database, an admin user is created automatically if `ADMIN_EMAIL` is set in `.env`. The password is either taken from `ADMIN_PASSWORD` or randomly generated and printed to the console.
-
 ### Promote Existing User to Admin
+
 ```bash
 sqlite3 data/database.db "UPDATE users SET role = 'admin' WHERE email = 'user@example.com';"
 ```
 
 ### View Database
+
 ```bash
 bun db:studio
 ```
 
-### Generate Migration (After Schema Changes)
-```bash
-bun db:generate  # Creates migration file
-bun db:migrate   # Applies migration
-```
+## Documentation
 
-## API Usage
-
-### Frontend (Type-Safe Client)
-```typescript
-import { apiClient } from '@/app/lib/api-client';
-
-// Get all brands
-const brands = await apiClient.getBrands();
-
-// Create brand (admin only)
-const brand = await apiClient.createBrand({ name: 'WWE' });
-
-// Make prediction
-await apiClient.createMatchPrediction({
-  matchId: 'match_123',
-  predictedSide: 1
-});
-```
-
-### Direct HTTP
-```bash
-# Get all events
-GET /api/events
-
-# Create event (admin only)
-POST /api/events
-{
-  "name": "WrestleMania 40",
-  "brandId": "brand_wwe",
-  "eventDate": "2024-04-07T00:00:00.000Z",
-  "status": "open"
-}
-```
-
-## Security Features
-
-- ✅ Scrypt password hashing (Better Auth)
-- ✅ Database-backed sessions with HTTP-only cookies
-- ✅ Rate limiting on auth endpoints (5 login attempts/15min)
-- ✅ Server-side session validation (verified against database)
-- ✅ Role-based access control
-- ✅ SQL injection protection (Drizzle ORM)
-- ✅ CSRF protection (Better Auth)
-
-## Database Schema
-
-16 tables organized into:
-- **User Management**: users
-- **Core Data**: brands, wrestlers, wrestlerNames, tagTeams, tagTeamMembers, championships
-- **Events & Matches**: events, matches, matchParticipants, matchCombatantChampionships
-- **Predictions**: matchPredictions, customPredictionTemplates, eventCustomPredictions, userCustomPredictions, userEventContrarian
-
-See [CLAUDE.md](CLAUDE.md) for detailed schema information.
-
-## Contributing
-
-This is a private system for small-scale use. For questions or issues, refer to:
-- [docs/API.md](docs/API.md) for API details
-- [CLAUDE.md](CLAUDE.md) for architecture decisions
-- [docs/README.md](docs/README.md) for documentation navigation
+- **[docs/API.md](docs/API.md)** - Complete API reference (~70 endpoints)
+- **[docs/UI.md](docs/UI.md)** - UI patterns and component guidelines
+- **[CLAUDE.md](CLAUDE.md)** - System architecture and design decisions
 
 ## License
 
 Private use only.
-
----
-
-**Version**: 1.2
-**Last Updated**: 2026-02-03
-**Next.js**: 16.1.6
-**API Endpoints**: ~70 (28 admin-only)

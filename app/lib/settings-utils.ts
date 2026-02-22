@@ -13,11 +13,16 @@ import { eq } from 'drizzle-orm';
  * Check if user signup is enabled
  */
 export async function isSignupEnabled(): Promise<boolean> {
-  const [setting] = await db
-    .select({ value: settings.value })
-    .from(settings)
-    .where(eq(settings.key, 'auth.signupEnabled'))
-    .limit(1);
+  try {
+    const [setting] = await db
+      .select({ value: settings.value })
+      .from(settings)
+      .where(eq(settings.key, 'auth.signupEnabled'))
+      .limit(1);
 
-  return setting?.value === 'true';
+    return setting?.value === 'true';
+  } catch {
+    // Database may not exist yet (e.g. during build)
+    return false;
+  }
 }

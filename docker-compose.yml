@@ -1,0 +1,21 @@
+services:
+  burberry:
+    image: ghcr.io/dead-antler/burberry:latest
+    container_name: burberry
+    ports:
+      - "3000:3000"
+    environment:
+      PUID: ${PUID:-1001}
+      PGID: ${PGID:-1001}
+      DB_FILE_NAME: file:data/database.db
+      AUTH_SECRET: ${AUTH_SECRET:?Set AUTH_SECRET in .env or environment}
+      AUTH_URL: ${AUTH_URL:-http://localhost:3000}
+      ADMIN_EMAIL: ${ADMIN_EMAIL:-admin@example.com}
+      # ADMIN_PASSWORD: ${ADMIN_PASSWORD:-}
+      # DB_LOGGING: "true"
+    volumes:
+      - app-data:/app/data
+    restart: unless-stopped
+
+volumes:
+  app-data:
