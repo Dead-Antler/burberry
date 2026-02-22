@@ -14,43 +14,43 @@ import {
 import { apiClient, ApiClientError } from "@/app/lib/api-client"
 import type { Wrestler } from "@/app/lib/api-types"
 
-interface DeleteWrestlerDialogProps {
+interface DeactivateWrestlerDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
   wrestler: Wrestler | null
-  onSuccess: (deletedId: string) => void
+  onSuccess: (id: string) => void
 }
 
-export function DeleteWrestlerDialog({
+export function DeactivateWrestlerDialog({
   open,
   onOpenChange,
   wrestler,
   onSuccess,
-}: DeleteWrestlerDialogProps) {
-  const [isDeleting, setIsDeleting] = useState(false)
+}: DeactivateWrestlerDialogProps) {
+  const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  const handleDelete = async () => {
+  const handleDeactivate = async () => {
     if (!wrestler) return
 
-    setIsDeleting(true)
+    setIsLoading(true)
     setError(null)
 
     try {
       await apiClient.deleteWrestler(wrestler.id)
-      setIsDeleting(false)
+      setIsLoading(false)
       onSuccess(wrestler.id)
     } catch (err) {
       const message = err instanceof ApiClientError
         ? err.message
-        : "Failed to delete wrestler"
+        : "Failed to deactivate wrestler"
       setError(message)
-      setIsDeleting(false)
+      setIsLoading(false)
     }
   }
 
   const handleOpenChange = (newOpen: boolean) => {
-    if (!isDeleting) {
+    if (!isLoading) {
       setError(null)
       onOpenChange(newOpen)
     }
@@ -60,10 +60,10 @@ export function DeleteWrestlerDialog({
     <AlertDialog open={open} onOpenChange={handleOpenChange}>
       <AlertDialogContent>
         <AlertDialogHeader>
-          <AlertDialogTitle>Delete Wrestler</AlertDialogTitle>
+          <AlertDialogTitle>Make Inactive</AlertDialogTitle>
           <AlertDialogDescription>
-            Are you sure you want to delete &ldquo;{wrestler?.currentName}&rdquo;? This
-            action cannot be undone.
+            Are you sure you want to make &ldquo;{wrestler?.currentName}&rdquo; inactive?
+            The wrestler will be hidden from active lists but can be reactivated later.
           </AlertDialogDescription>
         </AlertDialogHeader>
         {error && (
@@ -72,13 +72,13 @@ export function DeleteWrestlerDialog({
           </p>
         )}
         <AlertDialogFooter>
-          <AlertDialogCancel disabled={isDeleting}>Cancel</AlertDialogCancel>
+          <AlertDialogCancel disabled={isLoading}>Cancel</AlertDialogCancel>
           <AlertDialogAction
-            onClick={handleDelete}
-            disabled={isDeleting}
+            onClick={handleDeactivate}
+            disabled={isLoading}
             className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
           >
-            {isDeleting ? "Deleting..." : "Delete"}
+            {isLoading ? "Deactivating..." : "Make Inactive"}
           </AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>

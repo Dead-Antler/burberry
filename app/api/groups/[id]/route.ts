@@ -1,6 +1,6 @@
 import { NextRequest } from 'next/server';
-import { apiHandler, apiSuccess, apiSuccessCached, apiError, parseBodyWithSchema } from '@/app/lib/api-helpers';
-import { updateGroupSchema } from '@/app/lib/validation-schemas';
+import { apiHandler, apiSuccess, apiError, parseBodyWithSchema, parseQueryWithSchema } from '@/app/lib/api-helpers';
+import { updateGroupSchema, deleteQuerySchema } from '@/app/lib/validation-schemas';
 import { groupService } from '@/app/lib/services/group.service';
 
 /**
@@ -19,7 +19,7 @@ export const GET = apiHandler(async (req: NextRequest, { params }) => {
 
   const group = await groupService.getById(params.id, { includeMembers });
 
-  return apiSuccessCached(group);
+  return apiSuccess(group);
 });
 
 /**
@@ -44,14 +44,21 @@ export const PATCH = apiHandler(async (req: NextRequest, { params }) => {
 
 /**
  * DELETE /api/groups/:id
- * Delete a group (soft delete - sets isActive to false)
+ * Make inactive (default) or permanently delete (?force=true) a group
  */
-export const DELETE = apiHandler(async (_req, { params }) => {
+export const DELETE = apiHandler(async (req: NextRequest, { params }) => {
   if (!params?.id) {
     throw apiError('Group ID is required');
   }
 
-  await groupService.delete(params.id);
+  const { searchParams } = new URL(req.url);
+  const query = parseQueryWithSchema(searchParams, deleteQuerySchema);
 
+  if (query.force) {
+    await groupService.forceDelete(params.id);
+    return apiSuccess({ message: 'Group permanently deleted', id: params.id });
+  }
+
+  await groupService.delete(params.id);
   return apiSuccess({ message: 'Group deactivated successfully', id: params.id });
 }, { requireAdmin: true });

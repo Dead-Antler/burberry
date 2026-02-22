@@ -172,12 +172,19 @@ Content-Type: application/json
 
 **Note:** Updating `currentName` automatically closes previous name history and creates new entry.
 
-### Delete Wrestler (Soft Delete) `[ADMIN ONLY]`
+### Make Wrestler Inactive (Soft Delete) `[ADMIN ONLY]`
 ```
 DELETE /api/wrestlers/:id
 ```
 
-Sets `isActive` to `false`.
+Sets `isActive` to `false`. Can be reactivated later via PATCH.
+
+### Permanently Delete Wrestler `[ADMIN ONLY]`
+```
+DELETE /api/wrestlers/:id?force=true
+```
+
+Hard deletes the wrestler and all associated data (name history, group memberships, match participations, related predictions). **Irreversible.**
 
 ### Get Wrestler Name History
 ```
@@ -240,10 +247,19 @@ Content-Type: application/json
 }
 ```
 
-### Delete Group (Soft Delete) `[ADMIN ONLY]`
+### Make Group Inactive (Soft Delete) `[ADMIN ONLY]`
 ```
 DELETE /api/groups/:id
 ```
+
+Sets `isActive` to `false`. Can be reactivated later via PATCH.
+
+### Permanently Delete Group `[ADMIN ONLY]`
+```
+DELETE /api/groups/:id?force=true
+```
+
+Hard deletes the group and all associated data (member history, match participations, related predictions). **Irreversible.**
 
 ### Get Group Members
 ```

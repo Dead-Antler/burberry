@@ -7,7 +7,8 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { GroupsTable } from "@/app/components/groups/groups-table"
 import { GroupDialog } from "@/app/components/groups/group-dialog"
-import { DeleteGroupDialog } from "@/app/components/groups/delete-group-dialog"
+import { DeactivateGroupDialog } from "@/app/components/groups/delete-group-dialog"
+import { ForceDeleteGroupDialog } from "@/app/components/groups/force-delete-group-dialog"
 import { GroupMembersDialog } from "@/app/components/groups/group-members-dialog"
 import { PaginationControls } from "@/app/components/pagination-controls"
 import { apiClient, ApiClientError } from "@/app/lib/api-client"
@@ -27,7 +28,8 @@ export default function GroupsPage() {
   // Dialog states
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false)
   const [editingGroup, setEditingGroup] = useState<GroupWithMembers | null>(null)
-  const [deletingGroup, setDeletingGroup] = useState<GroupWithMembers | null>(null)
+  const [deactivatingGroup, setDeactivatingGroup] = useState<GroupWithMembers | null>(null)
+  const [forceDeleteGroup, setForceDeleteGroup] = useState<GroupWithMembers | null>(null)
   const [managingMembersGroup, setManagingMembersGroup] = useState<GroupWithMembers | null>(null)
 
   // Debounce search input
@@ -80,8 +82,9 @@ export default function GroupsPage() {
     fetchData(currentPage, debouncedSearch)
   }
 
-  const handleDeleteSuccess = () => {
-    setDeletingGroup(null)
+  const handleRemoveSuccess = () => {
+    setDeactivatingGroup(null)
+    setForceDeleteGroup(null)
     if (groups.length === 1 && currentPage > 1) {
       setCurrentPage(currentPage - 1)
     } else {
@@ -137,7 +140,8 @@ export default function GroupsPage() {
           isLoading={isLoading}
           error={error}
           onEdit={setEditingGroup}
-          onDelete={setDeletingGroup}
+          onDeactivate={setDeactivatingGroup}
+          onForceDelete={setForceDeleteGroup}
           onManageMembers={setManagingMembersGroup}
           onRetry={() => fetchData(currentPage, debouncedSearch)}
         />
@@ -165,11 +169,18 @@ export default function GroupsPage() {
           onSuccess={handleEditSuccess}
         />
 
-        <DeleteGroupDialog
-          open={deletingGroup !== null}
-          onOpenChange={(open) => !open && setDeletingGroup(null)}
-          group={deletingGroup}
-          onSuccess={handleDeleteSuccess}
+        <DeactivateGroupDialog
+          open={deactivatingGroup !== null}
+          onOpenChange={(open) => !open && setDeactivatingGroup(null)}
+          group={deactivatingGroup}
+          onSuccess={handleRemoveSuccess}
+        />
+
+        <ForceDeleteGroupDialog
+          open={forceDeleteGroup !== null}
+          onOpenChange={(open) => !open && setForceDeleteGroup(null)}
+          group={forceDeleteGroup}
+          onSuccess={handleRemoveSuccess}
         />
 
         <GroupMembersDialog

@@ -1,11 +1,12 @@
 "use client"
 
-import { MoreHorizontal, Pencil, Trash2 } from "lucide-react"
+import { MoreHorizontal, Pencil, Ban, Trash2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import {
@@ -27,7 +28,8 @@ interface WrestlersTableProps {
   isLoading: boolean
   error: string | null
   onEdit: (wrestler: Wrestler) => void
-  onDelete: (wrestler: Wrestler) => void
+  onDeactivate: (wrestler: Wrestler) => void
+  onForceDelete: (wrestler: Wrestler) => void
   onRetry: () => void
 }
 
@@ -72,7 +74,8 @@ export function WrestlersTable({
   isLoading,
   error,
   onEdit,
-  onDelete,
+  onDeactivate,
+  onForceDelete,
   onRetry,
 }: WrestlersTableProps) {
   if (error) {
@@ -152,12 +155,17 @@ export function WrestlersTable({
                         <Pencil className="mr-2 h-4 w-4" />
                         Edit
                       </DropdownMenuItem>
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItem onClick={() => onDeactivate(wrestler)}>
+                        <Ban className="mr-2 h-4 w-4" />
+                        Make Inactive
+                      </DropdownMenuItem>
                       <DropdownMenuItem
-                        onClick={() => onDelete(wrestler)}
+                        onClick={() => onForceDelete(wrestler)}
                         className="text-destructive focus:text-destructive"
                       >
                         <Trash2 className="mr-2 h-4 w-4" />
-                        Delete
+                        Permanently Delete
                       </DropdownMenuItem>
                     </DropdownMenuContent>
                   </DropdownMenu>

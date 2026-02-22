@@ -1,5 +1,5 @@
 import { NextRequest } from 'next/server';
-import { apiHandler, apiSuccessCached, parseQueryWithSchema } from '@/app/lib/api-helpers';
+import { apiHandler, apiSuccess, parseQueryWithSchema } from '@/app/lib/api-helpers';
 import { groupQuerySchema } from '@/app/lib/validation-schemas';
 import { groupService } from '@/app/lib/services/group.service';
 
@@ -25,5 +25,5 @@ export const GET = apiHandler(async (req: NextRequest) => {
     includeMembers: query.includeMembers,
   });
 
-  return apiSuccessCached({ data });
+  return apiSuccess({ data });
 });

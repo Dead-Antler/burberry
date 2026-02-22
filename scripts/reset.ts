@@ -1,9 +1,13 @@
 import { db } from '../app/lib/db';
 import {
+  wrestlerPredictionCooldowns,
   userCustomPredictions,
   matchPredictions,
   userEventJoin,
   eventCustomPredictions,
+  customPredictionGroupMembers,
+  customPredictionGroups,
+  customPredictionTemplates,
   matchParticipants,
   matches,
   events,
@@ -11,19 +15,22 @@ import {
   wrestlerNames,
   groups,
   wrestlers,
-  customPredictionTemplates,
   brands,
 } from '../app/lib/schema';
 
 async function reset() {
   console.log('Resetting database (preserving users)...\n');
 
-  // Delete in order due to foreign key constraints
+  // Delete in dependency order (children before parents)
   const tables = [
+    { name: 'wrestlerPredictionCooldowns', table: wrestlerPredictionCooldowns },
     { name: 'userCustomPredictions', table: userCustomPredictions },
     { name: 'matchPredictions', table: matchPredictions },
     { name: 'userEventJoin', table: userEventJoin },
     { name: 'eventCustomPredictions', table: eventCustomPredictions },
+    { name: 'customPredictionGroupMembers', table: customPredictionGroupMembers },
+    { name: 'customPredictionGroups', table: customPredictionGroups },
+    { name: 'customPredictionTemplates', table: customPredictionTemplates },
     { name: 'matchParticipants', table: matchParticipants },
     { name: 'matches', table: matches },
     { name: 'events', table: events },
@@ -31,7 +38,6 @@ async function reset() {
     { name: 'wrestlerNames', table: wrestlerNames },
     { name: 'groups', table: groups },
     { name: 'wrestlers', table: wrestlers },
-    { name: 'customPredictionTemplates', table: customPredictionTemplates },
     { name: 'brands', table: brands },
   ];
 

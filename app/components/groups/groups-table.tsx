@@ -1,11 +1,12 @@
 "use client"
 
-import { MoreHorizontal, Pencil, Trash2, Users } from "lucide-react"
+import { MoreHorizontal, Pencil, Ban, Trash2, Users } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import {
@@ -27,7 +28,8 @@ interface GroupsTableProps {
   isLoading: boolean
   error: string | null
   onEdit: (group: GroupWithMembers) => void
-  onDelete: (group: GroupWithMembers) => void
+  onDeactivate: (group: GroupWithMembers) => void
+  onForceDelete: (group: GroupWithMembers) => void
   onManageMembers: (group: GroupWithMembers) => void
   onRetry: () => void
 }
@@ -77,7 +79,8 @@ export function GroupsTable({
   isLoading,
   error,
   onEdit,
-  onDelete,
+  onDeactivate,
+  onForceDelete,
   onManageMembers,
   onRetry,
 }: GroupsTableProps) {
@@ -168,12 +171,17 @@ export function GroupsTable({
                           <Pencil className="mr-2 h-4 w-4" />
                           Edit
                         </DropdownMenuItem>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem onClick={() => onDeactivate(group)}>
+                          <Ban className="mr-2 h-4 w-4" />
+                          Make Inactive
+                        </DropdownMenuItem>
                         <DropdownMenuItem
-                          onClick={() => onDelete(group)}
+                          onClick={() => onForceDelete(group)}
                           className="text-destructive focus:text-destructive"
                         >
                           <Trash2 className="mr-2 h-4 w-4" />
-                          Delete
+                          Permanently Delete
                         </DropdownMenuItem>
                       </DropdownMenuContent>
                     </DropdownMenu>
