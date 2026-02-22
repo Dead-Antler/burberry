@@ -43,3 +43,6 @@ next-env.d.ts
 
 #database
 data
+
+# Don't include har files, we use them for testing I'm sure
+*.har

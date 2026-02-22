@@ -87,9 +87,12 @@ export const auth = betterAuth({
     },
   },
 
-  // Trust proxy headers for correct IP detection
+  // Origins trusted for CSRF validation (AUTH_URL is also trusted via baseURL)
   trustedOrigins: [
     process.env.AUTH_URL || 'http://localhost:3000',
+    ...(process.env.TRUSTED_ORIGINS
+      ? process.env.TRUSTED_ORIGINS.split(',').map(o => o.trim()).filter(Boolean)
+      : []),
   ],
 
   // Database hooks for custom logic

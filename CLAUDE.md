@@ -194,6 +194,8 @@ AUTH_SECRET=your-secret-key       # Generate: openssl rand -base64 32
 AUTH_URL=http://localhost:3000
 ADMIN_EMAIL=admin@example.com     # Required for auto-creating admin on first run
 # ADMIN_PASSWORD=optional         # If not set, random password is generated
+# PORT=3000                       # Host port for Docker (container always runs on 3000)
+# TRUSTED_ORIGINS=                # Additional trusted origins, comma-separated
 ```
 
 ## Deployment
