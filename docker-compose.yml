@@ -3,7 +3,7 @@ services:
     image: ghcr.io/dead-antler/burberry:latest
     container_name: burberry
     ports:
-      - "3000:3000"
+      - "${PORT:-3000}:3000"
     environment:
       PUID: ${PUID:-1001}
       PGID: ${PGID:-1001}
@@ -12,6 +12,7 @@ services:
       AUTH_URL: ${AUTH_URL:-http://localhost:3000}
       ADMIN_EMAIL: ${ADMIN_EMAIL:-admin@example.com}
       # ADMIN_PASSWORD: ${ADMIN_PASSWORD:-}
+      # TRUSTED_ORIGINS: ${TRUSTED_ORIGINS:-}
       # DB_LOGGING: "true"
     volumes:
       - app-data:/app/data

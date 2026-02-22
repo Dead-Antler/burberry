@@ -33,8 +33,8 @@ async function DashboardStatsCards() {
   const cookieStore = await cookies()
   const cookieHeader = cookieStore.toString()
 
-  const baseUrl = process.env.AUTH_URL || 'http://localhost:3000'
-  const res = await fetch(`${baseUrl}/api/dashboard/stats`, {
+  const port = process.env.PORT || '3000'
+  const res = await fetch(`http://localhost:${port}/api/dashboard/stats`, {
     headers: {
       Cookie: cookieHeader,
     },
