@@ -14,43 +14,43 @@ import {
 import { apiClient, ApiClientError } from "@/app/lib/api-client"
 import type { Group } from "@/app/lib/api-types"
 
-interface DeleteGroupDialogProps {
+interface DeactivateGroupDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
   group: Group | null
-  onSuccess: (deletedId: string) => void
+  onSuccess: (id: string) => void
 }
 
-export function DeleteGroupDialog({
+export function DeactivateGroupDialog({
   open,
   onOpenChange,
   group,
   onSuccess,
-}: DeleteGroupDialogProps) {
-  const [isDeleting, setIsDeleting] = useState(false)
+}: DeactivateGroupDialogProps) {
+  const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  const handleDelete = async () => {
+  const handleDeactivate = async () => {
     if (!group) return
 
-    setIsDeleting(true)
+    setIsLoading(true)
     setError(null)
 
     try {
       await apiClient.deleteGroup(group.id)
-      setIsDeleting(false)
+      setIsLoading(false)
       onSuccess(group.id)
     } catch (err) {
       const message = err instanceof ApiClientError
         ? err.message
-        : "Failed to delete group"
+        : "Failed to deactivate group"
       setError(message)
-      setIsDeleting(false)
+      setIsLoading(false)
     }
   }
 
   const handleOpenChange = (newOpen: boolean) => {
-    if (!isDeleting) {
+    if (!isLoading) {
       setError(null)
       onOpenChange(newOpen)
     }
@@ -60,10 +60,10 @@ export function DeleteGroupDialog({
     <AlertDialog open={open} onOpenChange={handleOpenChange}>
       <AlertDialogContent>
         <AlertDialogHeader>
-          <AlertDialogTitle>Delete Group</AlertDialogTitle>
+          <AlertDialogTitle>Make Inactive</AlertDialogTitle>
           <AlertDialogDescription>
-            Are you sure you want to delete &ldquo;{group?.name}&rdquo;? This
-            will mark the group as inactive.
+            Are you sure you want to make &ldquo;{group?.name}&rdquo; inactive?
+            The group will be hidden from active lists but can be reactivated later.
           </AlertDialogDescription>
         </AlertDialogHeader>
         {error && (
@@ -72,13 +72,13 @@ export function DeleteGroupDialog({
           </p>
         )}
         <AlertDialogFooter>
-          <AlertDialogCancel disabled={isDeleting}>Cancel</AlertDialogCancel>
+          <AlertDialogCancel disabled={isLoading}>Cancel</AlertDialogCancel>
           <AlertDialogAction
-            onClick={handleDelete}
-            disabled={isDeleting}
+            onClick={handleDeactivate}
+            disabled={isLoading}
             className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
           >
-            {isDeleting ? "Deleting..." : "Delete"}
+            {isLoading ? "Deactivating..." : "Make Inactive"}
           </AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>

@@ -3,7 +3,7 @@
  */
 
 import { db } from '../db';
-import { groups, groupMembers, wrestlers, brands } from '../schema';
+import { groups, groupMembers, wrestlers, brands, matchParticipants, matchPredictions, matches } from '../schema';
 import { eq, and, isNull, asc, desc, inArray, SQL, like } from 'drizzle-orm';
 import { generateId, apiError } from '../api-helpers';
 import type { PaginationParams } from '../api-helpers';
@@ -253,6 +253,53 @@ export const groupService = {
       .returning();
 
     return updated;
+  },
+
+  /**
+   * Force delete a group (hard delete with cascade to all dependent records)
+   * WARNING: This is irreversible and removes all associated data.
+   * @throws 404 if not found
+   */
+  async forceDelete(id: string) {
+    await ensureExists(groups, id, 'Group');
+
+    await withTransaction(async (tx) => {
+      // Find match participants referencing this group
+      const participantRows = await tx
+        .select({ id: matchParticipants.id })
+        .from(matchParticipants)
+        .where(
+          and(
+            eq(matchParticipants.participantType, 'group'),
+            eq(matchParticipants.participantId, id)
+          )
+        );
+      const participantIds = participantRows.map((p) => p.id);
+
+      if (participantIds.length > 0) {
+        // Null out winnerParticipantId on matches that reference these participants
+        await tx
+          .update(matches)
+          .set({ winnerParticipantId: null })
+          .where(inArray(matches.winnerParticipantId, participantIds));
+
+        // Delete predictions that picked this group as winner
+        await tx
+          .delete(matchPredictions)
+          .where(inArray(matchPredictions.predictedParticipantId, participantIds));
+
+        // Delete the match participant entries
+        await tx
+          .delete(matchParticipants)
+          .where(inArray(matchParticipants.id, participantIds));
+      }
+
+      // Delete group memberships
+      await tx.delete(groupMembers).where(eq(groupMembers.groupId, id));
+
+      // Delete the group
+      await tx.delete(groups).where(eq(groups.id, id));
+    });
   },
 
   /**

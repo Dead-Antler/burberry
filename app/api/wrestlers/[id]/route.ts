@@ -1,6 +1,6 @@
 import { NextRequest } from 'next/server';
-import { apiHandler, apiSuccess, apiError, parseBodyWithSchema } from '@/app/lib/api-helpers';
-import { updateWrestlerSchema } from '@/app/lib/validation-schemas';
+import { apiHandler, apiSuccess, apiError, parseBodyWithSchema, parseQueryWithSchema } from '@/app/lib/api-helpers';
+import { updateWrestlerSchema, deleteQuerySchema } from '@/app/lib/validation-schemas';
 import { wrestlerService } from '@/app/lib/services/wrestler.service';
 
 /**
@@ -44,14 +44,21 @@ export const PATCH = apiHandler(async (req: NextRequest, { params }) => {
 
 /**
  * DELETE /api/wrestlers/:id
- * Delete a wrestler (soft delete - sets isActive to false)
+ * Make inactive (default) or permanently delete (?force=true) a wrestler
  */
-export const DELETE = apiHandler(async (_req, { params }) => {
+export const DELETE = apiHandler(async (req: NextRequest, { params }) => {
   if (!params?.id) {
     throw apiError('Wrestler ID is required');
   }
 
-  await wrestlerService.delete(params.id);
+  const { searchParams } = new URL(req.url);
+  const query = parseQueryWithSchema(searchParams, deleteQuerySchema);
 
+  if (query.force) {
+    await wrestlerService.forceDelete(params.id);
+    return apiSuccess({ message: 'Wrestler permanently deleted', id: params.id });
+  }
+
+  await wrestlerService.delete(params.id);
   return apiSuccess({ message: 'Wrestler deactivated successfully', id: params.id });
 }, { requireAdmin: true });

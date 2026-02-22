@@ -7,7 +7,8 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { WrestlersTable } from "@/app/components/wrestlers/wrestlers-table"
 import { WrestlerDialog } from "@/app/components/wrestlers/wrestler-dialog"
-import { DeleteWrestlerDialog } from "@/app/components/wrestlers/delete-wrestler-dialog"
+import { DeactivateWrestlerDialog } from "@/app/components/wrestlers/delete-wrestler-dialog"
+import { ForceDeleteWrestlerDialog } from "@/app/components/wrestlers/force-delete-wrestler-dialog"
 import { PaginationControls } from "@/app/components/pagination-controls"
 import { apiClient, ApiClientError } from "@/app/lib/api-client"
 import type { Wrestler, Brand, PaginationInfo } from "@/app/lib/api-types"
@@ -25,7 +26,8 @@ export default function WrestlersPage() {
   // Dialog states
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false)
   const [editingWrestler, setEditingWrestler] = useState<Wrestler | null>(null)
-  const [deletingWrestler, setDeletingWrestler] = useState<Wrestler | null>(null)
+  const [deactivatingWrestler, setDeactivatingWrestler] = useState<Wrestler | null>(null)
+  const [forceDeleteWrestler, setForceDeleteWrestler] = useState<Wrestler | null>(null)
 
   // Debounce search input
   useEffect(() => {
@@ -75,9 +77,10 @@ export default function WrestlersPage() {
     fetchData(currentPage, debouncedSearch)
   }
 
-  const handleDeleteSuccess = () => {
-    setDeletingWrestler(null)
-    // If we deleted the last item on this page, go to previous page
+  const handleRemoveSuccess = () => {
+    setDeactivatingWrestler(null)
+    setForceDeleteWrestler(null)
+    // If we removed the last item on this page, go to previous page
     if (wrestlers.length === 1 && currentPage > 1) {
       setCurrentPage(currentPage - 1)
     } else {
@@ -129,7 +132,8 @@ export default function WrestlersPage() {
           isLoading={isLoading}
           error={error}
           onEdit={setEditingWrestler}
-          onDelete={setDeletingWrestler}
+          onDeactivate={setDeactivatingWrestler}
+          onForceDelete={setForceDeleteWrestler}
           onRetry={() => fetchData(currentPage, debouncedSearch)}
         />
 
@@ -156,11 +160,18 @@ export default function WrestlersPage() {
           onSuccess={handleEditSuccess}
         />
 
-        <DeleteWrestlerDialog
-          open={deletingWrestler !== null}
-          onOpenChange={(open) => !open && setDeletingWrestler(null)}
-          wrestler={deletingWrestler}
-          onSuccess={handleDeleteSuccess}
+        <DeactivateWrestlerDialog
+          open={deactivatingWrestler !== null}
+          onOpenChange={(open) => !open && setDeactivatingWrestler(null)}
+          wrestler={deactivatingWrestler}
+          onSuccess={handleRemoveSuccess}
+        />
+
+        <ForceDeleteWrestlerDialog
+          open={forceDeleteWrestler !== null}
+          onOpenChange={(open) => !open && setForceDeleteWrestler(null)}
+          wrestler={forceDeleteWrestler}
+          onSuccess={handleRemoveSuccess}
         />
       </div>
     </>

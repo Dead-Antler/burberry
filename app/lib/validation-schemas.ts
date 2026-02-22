@@ -28,6 +28,10 @@ export const matchOutcomeSchema = z.enum(['winner', 'draw', 'no_contest']);
 export const participantTypeSchema = z.enum(['wrestler', 'group']);
 export const predictionTypeSchema = z.enum(['time', 'count', 'wrestler', 'boolean', 'text']);
 
+export const deleteQuerySchema = z.object({
+  force: z.enum(['true', 'false']).transform((v) => v === 'true').optional(),
+});
+
 // ============================================================================
 // Brand Schemas
 // ============================================================================

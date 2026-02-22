@@ -3,7 +3,7 @@
  */
 
 import { db } from '../db';
-import { wrestlers, wrestlerNames, brands, groupMembers, groups } from '../schema';
+import { wrestlers, wrestlerNames, brands, groupMembers, groups, matchParticipants, matchPredictions, matches, wrestlerPredictionCooldowns, eventCustomPredictions, userCustomPredictions } from '../schema';
 import { eq, and, isNull, asc, desc, SQL, inArray, like } from 'drizzle-orm';
 import { generateId } from '../api-helpers';
 import type { PaginationParams } from '../api-helpers';
@@ -271,6 +271,69 @@ export const wrestlerService = {
       .returning();
 
     return updated;
+  },
+
+  /**
+   * Force delete a wrestler (hard delete with cascade to all dependent records)
+   * WARNING: This is irreversible and removes all associated data.
+   * @throws 404 if not found
+   */
+  async forceDelete(id: string) {
+    await ensureExists(wrestlers, id, 'Wrestler');
+
+    await withTransaction(async (tx) => {
+      // Find match participants referencing this wrestler
+      const participantRows = await tx
+        .select({ id: matchParticipants.id })
+        .from(matchParticipants)
+        .where(
+          and(
+            eq(matchParticipants.participantType, 'wrestler'),
+            eq(matchParticipants.participantId, id)
+          )
+        );
+      const participantIds = participantRows.map((p) => p.id);
+
+      if (participantIds.length > 0) {
+        // Null out winnerParticipantId on matches that reference these participants
+        await tx
+          .update(matches)
+          .set({ winnerParticipantId: null })
+          .where(inArray(matches.winnerParticipantId, participantIds));
+
+        // Delete predictions that picked this wrestler as winner
+        await tx
+          .delete(matchPredictions)
+          .where(inArray(matchPredictions.predictedParticipantId, participantIds));
+
+        // Delete the match participant entries
+        await tx
+          .delete(matchParticipants)
+          .where(inArray(matchParticipants.id, participantIds));
+      }
+
+      // Null out wrestler references in custom predictions
+      await tx
+        .update(eventCustomPredictions)
+        .set({ answerWrestlerId: null })
+        .where(eq(eventCustomPredictions.answerWrestlerId, id));
+      await tx
+        .update(userCustomPredictions)
+        .set({ predictionWrestlerId: null })
+        .where(eq(userCustomPredictions.predictionWrestlerId, id));
+
+      // Delete wrestler name history
+      await tx.delete(wrestlerNames).where(eq(wrestlerNames.wrestlerId, id));
+
+      // Delete group memberships
+      await tx.delete(groupMembers).where(eq(groupMembers.wrestlerId, id));
+
+      // Delete wrestler prediction cooldowns
+      await tx.delete(wrestlerPredictionCooldowns).where(eq(wrestlerPredictionCooldowns.wrestlerId, id));
+
+      // Delete the wrestler
+      await tx.delete(wrestlers).where(eq(wrestlers.id, id));
+    });
   },
 
   /**

@@ -288,6 +288,12 @@ class ApiClient {
     });
   }
 
+  async forceDeleteWrestler(id: string): Promise<{ message: string; id: string }> {
+    return this.request(`/api/wrestlers/${id}?force=true`, {
+      method: 'DELETE',
+    });
+  }
+
   async getWrestlerNames(id: string): Promise<WrestlerName[]> {
     return this.request(`/api/wrestlers/${id}/names`);
   }
@@ -350,6 +356,12 @@ class ApiClient {
 
   async deleteGroup(id: string): Promise<{ message: string; id: string }> {
     return this.request(`/api/groups/${id}`, {
+      method: 'DELETE',
+    });
+  }
+
+  async forceDeleteGroup(id: string): Promise<{ message: string; id: string }> {
+    return this.request(`/api/groups/${id}?force=true`, {
       method: 'DELETE',
     });
   }
