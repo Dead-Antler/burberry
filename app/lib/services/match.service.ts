@@ -368,12 +368,8 @@ export const matchService = {
    * @throws 400 if event is not editable
    */
   async reorder(eventId: string, matchIds: string[]) {
-    // Get the event to verify it's editable
-    const event = await ensureExists(events, eventId, 'Event');
-
-    if (event.status !== 'pending' && event.status !== 'open') {
-      throw apiError('Cannot reorder matches for a locked or completed event', 400);
-    }
+    // Get the event to verify it exists
+    await ensureExists(events, eventId, 'Event');
 
     // Verify all matches belong to this event
     const eventMatches = await db
