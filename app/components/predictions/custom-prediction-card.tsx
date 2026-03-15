@@ -35,6 +35,7 @@ interface CustomPredictionCardProps {
     eventCustomPredictionId: string,
     data: UpdateUserCustomPredictionRequest
   ) => Promise<void>
+  onPredictionClear: (eventCustomPredictionId: string) => Promise<void>
 }
 
 export function CustomPredictionCard({
@@ -45,6 +46,7 @@ export function CustomPredictionCard({
   isLocked,
   eventStatus,
   onPredictionChange,
+  onPredictionClear,
 }: CustomPredictionCardProps) {
   const { eventCustomPrediction: ecp, template } = prediction
   const type = template.predictionType
@@ -89,6 +91,21 @@ export function CustomPredictionCard({
     } finally {
       setIsSaving(false)
     }
+  }
+
+  const handleWrestlerChange = async (ids: string[]) => {
+    if (isLocked) return
+    if (ids.length === 0) {
+      if (!userPrediction) return
+      setIsSaving(true)
+      try {
+        await onPredictionClear(ecp.id)
+      } finally {
+        setIsSaving(false)
+      }
+      return
+    }
+    await handleChange({ predictionWrestlerId: JSON.stringify(ids) })
   }
 
   return (
@@ -149,7 +166,7 @@ export function CustomPredictionCard({
           value={userPrediction?.predictionWrestlerId}
           isLocked={isLocked}
           isSaving={isSaving}
-          onChange={(ids) => handleChange({ predictionWrestlerId: JSON.stringify(ids) })}
+          onChange={handleWrestlerChange}
         />
       )}
 

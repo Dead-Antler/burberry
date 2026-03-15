@@ -47,6 +47,7 @@ export default function EventPredictionPage({
     setIsAnimating,
     handlePredictionChange,
     handleCustomPredictionChange,
+    handleCustomPredictionClear,
     refreshCustomPredictions,
     handleMatchUpdate,
     handleCreateSurpriseMatch,
@@ -257,6 +258,7 @@ export default function EventPredictionPage({
                       isLocked={predictionsDisabled}
                       eventStatus={event.status}
                       onPredictionChange={handleCustomPredictionChange}
+                      onPredictionClear={handleCustomPredictionClear}
                     />
                   ))}
                 </div>
