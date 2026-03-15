@@ -347,6 +347,8 @@ export function useEventData(eventId: string): UseEventDataReturn {
       })
       const eventData = await apiClient.getEvent(eventId, { includeMatches: true })
       setMatches(eventData.matches || [])
+      // Scroll to the bottom so the new surprise match is visible
+      setTimeout(() => window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' }), 100)
     } catch (err) {
       console.error('Failed to create surprise match:', err)
       alert(`Failed to create surprise match: ${err instanceof Error ? err.message : 'Unknown error'}`)
