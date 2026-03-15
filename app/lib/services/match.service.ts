@@ -333,8 +333,13 @@ export const matchService = {
     const match = await ensureExists(matches, matchId, 'Match');
     const event = await ensureExists(events, match.eventId, 'Event');
 
-    if (event.status !== 'pending' && event.status !== 'open') {
-      throw apiError('Cannot modify participants for a locked or completed event', 400);
+    if (event.status === 'completed') {
+      throw apiError('Cannot modify participants for a completed event', 400);
+    }
+
+    // Allow participant changes on unlocked matches during locked events (surprise matches)
+    if (event.status === 'locked' && match.isLocked) {
+      throw apiError('Cannot modify participants for a locked match', 400);
     }
 
     // Validate participant reference

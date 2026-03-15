@@ -281,12 +281,10 @@ function SortableRow({
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
-            {!match.unknownParticipants && (
-              <DropdownMenuItem onClick={() => onManageParticipants(match)}>
-                <UserPlus className="mr-2 h-4 w-4" />
-                Participants
-              </DropdownMenuItem>
-            )}
+            <DropdownMenuItem onClick={() => onManageParticipants(match)}>
+              <UserPlus className="mr-2 h-4 w-4" />
+              Participants
+            </DropdownMenuItem>
             <DropdownMenuItem onClick={() => onEdit(match)}>
               <Pencil className="mr-2 h-4 w-4" />
               Edit
