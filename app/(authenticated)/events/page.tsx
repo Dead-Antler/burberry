@@ -31,8 +31,8 @@ export default function EventsPage() {
         apiClient.getBrands(),
       ])
 
-      // Sort events: open first, then locked, then completed, then pending
-      const statusOrder: Record<string, number> = { open: 0, locked: 1, completed: 2, pending: 3 }
+      // Sort events: open first, then locked, then pending, then completed
+      const statusOrder: Record<string, number> = { open: 0, locked: 1, pending: 2, completed: 3 }
       eventsData.sort((a, b) => {
         const aOrder = statusOrder[a.status] ?? 999
         const bOrder = statusOrder[b.status] ?? 999
@@ -260,13 +260,13 @@ export default function EventsPage() {
                       >
                         View Results
                       </Button>
-                    ) : event.status === 'locked' ? (
+                    ) : event.status === 'locked' || event.status === 'pending' ? (
                       <Button
                         className="w-full"
                         variant="outline"
                         onClick={() => handleViewEvent(event.id)}
                       >
-                        View Event
+                        {event.status === 'pending' ? 'Preview Card' : 'View Event'}
                       </Button>
                     ) : (
                       <Button
@@ -274,7 +274,7 @@ export default function EventsPage() {
                         onClick={() => setJoiningEventId(event.id)}
                         disabled={event.status !== 'open'}
                       >
-                        {event.status === 'open' ? 'Join Event' : 'Not Available'}
+                        Join Event
                       </Button>
                     )}
                   </CardFooter>

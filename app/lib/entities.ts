@@ -264,7 +264,7 @@ export function updatedTimestamp() {
 
 import { events, matches } from './schema';
 
-export type EventStatus = 'open' | 'locked' | 'completed';
+export type EventStatus = 'pending' | 'open' | 'locked' | 'completed';
 
 /**
  * Ensure an event has the required status

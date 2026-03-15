@@ -74,7 +74,7 @@ export function useEventData(eventId: string): UseEventDataReturn {
         const joinStatus = await apiClient.getEventJoinStatus(eventId)
         setUserJoin(joinStatus)
       } catch {
-        if (eventData.status !== 'completed') {
+        if (eventData.status !== 'completed' && eventData.status !== 'pending') {
           router.push('/events')
           return
         }

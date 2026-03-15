@@ -111,7 +111,7 @@ export default function EventPredictionPage({
     }
   }
 
-  const isLocked = event.status === 'locked' || event.status === 'completed'
+  const predictionsDisabled = event.status === 'locked' || event.status === 'completed' || event.status === 'pending'
 
   return (
     <>
@@ -196,7 +196,9 @@ export default function EventPredictionPage({
               <div>
                 <h2 className="text-lg font-semibold">Matches</h2>
                 <p className="text-sm text-muted-foreground">
-                  {isLocked
+                  {event.status === 'pending'
+                    ? "This card is being prepared. Predictions will open soon."
+                    : predictionsDisabled
                     ? "Predictions are locked. Results will be available soon."
                     : "Make your predictions for each match"}
                 </p>
@@ -218,7 +220,7 @@ export default function EventPredictionPage({
                         userPrediction={userPredictions.get(match.id)}
                         stats={predictionStats?.matches.find((m) => m.matchId === match.id)}
                         hidePredictors={event.hidePredictors}
-                        isLocked={match.isLocked || event.status === 'completed'}
+                        isLocked={match.isLocked || event.status === 'completed' || event.status === 'pending'}
                         isAdmin={isAdmin}
                         eventStatus={event.status}
                         onPredictionChange={async (data) => await handlePredictionChange(match.id, data)}
@@ -235,7 +237,9 @@ export default function EventPredictionPage({
                 <div>
                   <h2 className="text-lg font-semibold">Custom Predictions</h2>
                   <p className="text-sm text-muted-foreground">
-                    {isLocked
+                    {event.status === 'pending'
+                      ? "Custom predictions will open soon."
+                      : predictionsDisabled
                       ? "Custom predictions are locked."
                       : "Make your predictions for each question"}
                   </p>
@@ -250,7 +254,7 @@ export default function EventPredictionPage({
                         (s) => s.eventCustomPredictionId === cp.eventCustomPrediction.id
                       )}
                       hidePredictors={event.hidePredictors}
-                      isLocked={isLocked}
+                      isLocked={predictionsDisabled}
                       eventStatus={event.status}
                       onPredictionChange={handleCustomPredictionChange}
                     />

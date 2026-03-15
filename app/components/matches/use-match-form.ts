@@ -171,7 +171,7 @@ export function useMatchForm({
     if (!wrestler) return
 
     const newParticipant: LocalParticipant = {
-      id: crypto.randomUUID(),
+      id: `local_${Date.now()}_${Math.random().toString(36).slice(2)}`,
       participantType: "wrestler",
       participantId: wrestler.id,
       participantName: wrestler.currentName,

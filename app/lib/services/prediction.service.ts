@@ -37,7 +37,7 @@ import {
  * @throws 400 if event is not open
  */
 async function requireEventOpen(eventId: string): Promise<typeof events.$inferSelect> {
-  return ensureEventStatus(eventId, 'open', 'modify predictions for a locked or completed event');
+  return ensureEventStatus(eventId, 'open', 'modify predictions for an event that is not open');
 }
 
 /**
@@ -48,7 +48,7 @@ async function requireEventOpen(eventId: string): Promise<typeof events.$inferSe
 async function requireMatchEventOpen(
   matchId: string
 ): Promise<{ match: typeof matches.$inferSelect; event: typeof events.$inferSelect }> {
-  return ensureEventStatusForMatch(matchId, 'open', 'modify predictions for a locked or completed event');
+  return ensureEventStatusForMatch(matchId, 'open', 'modify predictions for an event that is not open');
 }
 
 // ============================================================================
@@ -166,8 +166,11 @@ export const matchPredictionService = {
 
       // Check event and match status WITHIN transaction to prevent TOCTOU
       const [event] = await tx.select().from(events).where(eq(events.id, match.eventId));
-      if (!event || event.status === 'completed') {
-        throw apiError('Cannot modify predictions for a completed event', 400);
+      if (!event) {
+        throw apiError('Event not found', 404);
+      }
+      if (event.status === 'completed' || event.status === 'pending') {
+        throw apiError(`Cannot modify predictions for a ${event.status} event`, 400);
       }
 
       // Allow predictions on unlocked matches even during locked events (surprise matches)
@@ -493,8 +496,11 @@ export const customPredictionService = {
         .from(events)
         .where(eq(events.id, eventPrediction.eventCustomPrediction.eventId));
 
-      if (!event || event.status === 'completed') {
-        throw apiError('Cannot modify predictions for a completed event', 400);
+      if (!event) {
+        throw apiError('Event not found', 404);
+      }
+      if (event.status === 'completed' || event.status === 'pending') {
+        throw apiError(`Cannot modify predictions for a ${event.status} event`, 400);
       }
 
       // Check if prediction already exists
