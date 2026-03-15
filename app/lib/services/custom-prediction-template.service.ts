@@ -3,7 +3,7 @@
  */
 
 import { db } from '../db';
-import { customPredictionTemplates, eventCustomPredictions } from '../schema';
+import { customPredictionTemplates, eventCustomPredictions, customPredictionGroupMembers } from '../schema';
 import { eq, asc, desc, SQL } from 'drizzle-orm';
 import { generateId } from '../api-helpers';
 import type { PaginationParams } from '../api-helpers';
@@ -139,6 +139,9 @@ export const customPredictionTemplateService = {
     if (usage) {
       throw apiError('Cannot delete template that is in use by event predictions', 400);
     }
+
+    // Remove from any prediction groups first
+    await db.delete(customPredictionGroupMembers).where(eq(customPredictionGroupMembers.templateId, id));
 
     await db.delete(customPredictionTemplates).where(eq(customPredictionTemplates.id, id));
   },

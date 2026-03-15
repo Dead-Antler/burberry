@@ -30,7 +30,8 @@ export function DeleteTemplateDialog({
   const [isDeleting, setIsDeleting] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  const handleDelete = async () => {
+  const handleDelete = async (e: React.MouseEvent) => {
+    e.preventDefault()
     if (!template) return
 
     setIsDeleting(true)
