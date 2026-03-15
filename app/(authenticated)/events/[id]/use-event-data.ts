@@ -36,6 +36,7 @@ interface UseEventDataReturn {
   fetchData: () => Promise<void>
   handlePredictionChange: (matchId: string, data: { predictedSide?: number; predictedParticipantId?: string }) => Promise<void>
   handleCustomPredictionChange: (eventCustomPredictionId: string, data: UpdateUserCustomPredictionRequest) => Promise<void>
+  handleCustomPredictionClear: (eventCustomPredictionId: string) => Promise<void>
   refreshCustomPredictions: () => Promise<void>
   handleMatchUpdate: (matchId: string, data: UpdateMatchRequest) => Promise<void>
   handleCreateSurpriseMatch: () => Promise<void>
@@ -295,6 +296,30 @@ export function useEventData(eventId: string): UseEventDataReturn {
     }
   }
 
+  const handleCustomPredictionClear = async (eventCustomPredictionId: string) => {
+    const existing = userCustomPredictions.get(eventCustomPredictionId)
+    if (!existing) {
+      await refreshCustomPredictions()
+      return
+    }
+
+    try {
+      await apiClient.deleteUserCustomPrediction(existing.id)
+
+      setUserCustomPredictions((prev) => {
+        const next = new Map(prev)
+        next.delete(eventCustomPredictionId)
+        return next
+      })
+
+      const stats = await apiClient.getEventPredictionStats(eventId)
+      setPredictionStats(stats)
+    } catch (err) {
+      console.error('Failed to clear custom prediction:', err)
+      await refreshCustomPredictions()
+    }
+  }
+
   const handleMatchUpdate = async (matchId: string, data: UpdateMatchRequest) => {
     try {
       await apiClient.updateMatch(matchId, data)
@@ -349,6 +374,7 @@ export function useEventData(eventId: string): UseEventDataReturn {
     fetchData,
     handlePredictionChange,
     handleCustomPredictionChange,
+    handleCustomPredictionClear,
     refreshCustomPredictions,
     handleMatchUpdate,
     handleCreateSurpriseMatch,
