@@ -53,15 +53,24 @@ export function OverallStandings({ leaderboard, currentUserId }: OverallStanding
                         <Badge variant="outline" className="text-xs">You</Badge>
                       )}
                     </div>
-                    <div className="text-sm text-muted-foreground">
-                      {score.eventsParticipated} event{score.eventsParticipated !== 1 ? 's' : ''}
-                      {' · '}
-                      {score.firstPlaceFinishes} win{score.firstPlaceFinishes !== 1 ? 's' : ''}
-                      {' · '}
-                      {score.matchPredictions.total + score.customPredictions.total} prediction{score.matchPredictions.total + score.customPredictions.total !== 1 ? 's' : ''}
+                    <div className="text-sm text-muted-foreground flex items-center gap-1 flex-wrap">
+                      <span>{score.eventsParticipated} event{score.eventsParticipated !== 1 ? 's' : ''}</span>
+                      {score.firstPlaceFinishes > 0 && (
+                        <>
+                          <span>·</span>
+                          <span className="font-medium text-yellow-600 dark:text-yellow-400">
+                            {score.firstPlaceFinishes <= 5
+                              ? '👑'.repeat(score.firstPlaceFinishes)
+                              : `👑 ×${score.firstPlaceFinishes}`
+                            }
+                          </span>
+                        </>
+                      )}
+                      <span>·</span>
+                      <span>{score.matchPredictions.total + score.customPredictions.total} prediction{score.matchPredictions.total + score.customPredictions.total !== 1 ? 's' : ''}</span>
                       {score.contrarianWins > 0 && (
                         <>
-                          {' · '}
+                          <span>·</span>
                           <span className="text-red-600 dark:text-red-400 font-medium">
                             {score.contrarianWins} contrarian
                           </span>

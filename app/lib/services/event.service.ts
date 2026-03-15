@@ -700,8 +700,10 @@ export const eventService = {
       matchPredictions: { total: 0, correct: 0 },
       customPredictions: { total: 0, correct: 0, points: 0 },
       totalScore: 0,
+      placementBonus: 0,
       isContrarian: false,
       didWinContrarian: null,
+      zeroedByContrarian: false,
     });
 
     // Initialize scores for all event participants
@@ -742,23 +744,61 @@ export const eventService = {
       }
     }
 
-    // Calculate total scores
+    // Check if any contrarian won
+    const hasContrarianWinner = Object.values(scoresByUser).some(
+      (u) => u.isContrarian && u.didWinContrarian
+    );
+
+    // Calculate base scores (before placement bonus)
     for (const id in scoresByUser) {
       const user = scoresByUser[id];
 
       if (user.isContrarian) {
         if (user.didWinContrarian) {
-          // Won contrarian: all predictions wrong, count incorrect as score
-          const matchIncorrect = user.matchPredictions.total - user.matchPredictions.correct;
-          const customIncorrect = user.customPredictions.total - user.customPredictions.correct;
-          user.totalScore = matchIncorrect + customIncorrect;
+          // Won contrarian: score = incorrect match predictions + custom points
+          const incorrectMatches = user.matchPredictions.total - user.matchPredictions.correct;
+          user.totalScore = incorrectMatches + user.customPredictions.points;
         } else {
-          // Lost contrarian: got a prediction right, zero points
-          user.totalScore = 0;
+          // Lost contrarian: 0 match points + custom points only
+          user.totalScore = user.customPredictions.points;
         }
+      } else if (hasContrarianWinner) {
+        // Non-contrarian zeroed out when a contrarian wins
+        user.totalScore = 0;
+        user.zeroedByContrarian = true;
       } else {
-        // Normal mode: points earned (supports multi-point wrestler predictions)
+        // Normal mode
         user.totalScore = user.matchPredictions.correct + user.customPredictions.points;
+      }
+    }
+
+    // Calculate placement bonuses (standard competition ranking)
+    // Contrarian losers are excluded from placement bonus
+    const allScores = Object.values(scoresByUser);
+    const eligible = allScores
+      .filter((u) => !(u.isContrarian && !u.didWinContrarian) && !u.zeroedByContrarian)
+      .sort((a, b) => b.totalScore - a.totalScore);
+
+    let rank = 0;
+    let prevScore = -1;
+    let skip = 0;
+    for (const user of eligible) {
+      if (user.totalScore !== prevScore) {
+        rank += 1 + skip;
+        skip = 0;
+      } else {
+        skip++;
+      }
+      prevScore = user.totalScore;
+
+      let bonus = 0;
+      if (rank === 1) bonus = 3;
+      else if (rank === 2) bonus = 2;
+      else if (rank === 3) bonus = 1;
+
+      if (bonus > 0) {
+        user.placementBonus = bonus;
+        user.totalScore += bonus;
       }
     }
 
@@ -781,18 +821,8 @@ export const eventService = {
       }
     }
 
-    // Sort: contrarian winners first, then by score, losing contrarians last
-    return Object.values(scoresByUser).sort((a, b) => {
-      // Contrarian winners always come first
-      if (a.didWinContrarian && !b.didWinContrarian) return -1;
-      if (!a.didWinContrarian && b.didWinContrarian) return 1;
-      // Losing contrarians always go last
-      const aLostContrarian = a.isContrarian && a.didWinContrarian === false;
-      const bLostContrarian = b.isContrarian && b.didWinContrarian === false;
-      if (aLostContrarian && !bLostContrarian) return 1;
-      if (!aLostContrarian && bLostContrarian) return -1;
-      return b.totalScore - a.totalScore;
-    });
+    // Sort by total score descending (placement bonus already included)
+    return Object.values(scoresByUser).sort((a, b) => b.totalScore - a.totalScore);
   },
 
   /**

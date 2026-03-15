@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import { getPlacement, getPlacementStyle } from "@/app/(authenticated)/leaderboard/leaderboard-utils"
 import type { Event, EventJoinWithUser, Leaderboard } from "@/app/lib/api-types"
 
 interface EventLeaderboardProps {
@@ -71,25 +72,12 @@ export function EventLeaderboard({
             {leaderboard.map((score, index) => {
                 const participant = participants.find((p) => p.userId === score.userId)
                 const isCurrentUser = currentUserId === score.userId
-                const placement = index === 0 || score.totalScore !== leaderboard[index - 1].totalScore
-                  ? index + 1
-                  : leaderboard.findIndex((s) => s.totalScore === score.totalScore) + 1
+                const placement = getPlacement(leaderboard, index, (s) => s.totalScore)
 
                 const positionFromBottom = leaderboard.length - index - 1
                 const isVisible = hasAnimated || (isAnimating && visibleCount > positionFromBottom)
 
-                let bgClass = ''
-                let borderClass = 'border'
-                if (placement === 1) {
-                  bgClass = 'bg-gradient-to-r from-yellow-50 to-yellow-100 dark:from-yellow-950/20 dark:to-yellow-900/20'
-                  borderClass = 'border-yellow-400 dark:border-yellow-600'
-                } else if (placement === 2) {
-                  bgClass = 'bg-gradient-to-r from-slate-50 to-slate-100 dark:from-slate-800/20 dark:to-slate-700/20'
-                  borderClass = 'border-slate-400 dark:border-slate-500'
-                } else if (placement === 3) {
-                  bgClass = 'bg-gradient-to-r from-orange-50 to-orange-100 dark:from-orange-950/20 dark:to-orange-900/20'
-                  borderClass = 'border-orange-400 dark:border-orange-600'
-                }
+                const { bgClass, borderClass, textClass } = getPlacementStyle(placement)
 
                 const widthClass = placement === 1 ? 'w-full' : placement === 2 ? 'w-[95%]' : placement === 3 ? 'w-[90%]' : 'w-[85%]'
 
@@ -106,12 +94,7 @@ export function EventLeaderboard({
                     }}
                   >
                     <div className="flex items-center gap-3">
-                      <div className={`text-2xl font-bold w-8 ${
-                        placement === 1 ? 'text-yellow-600 dark:text-yellow-400' :
-                        placement === 2 ? 'text-slate-600 dark:text-slate-400' :
-                        placement === 3 ? 'text-orange-600 dark:text-orange-400' :
-                        'text-muted-foreground'
-                      }`}>
+                      <div className={`text-2xl font-bold w-8 ${textClass}`}>
                         #{placement}
                       </div>
                       <Avatar className="h-10 w-10">
@@ -136,9 +119,32 @@ export function EventLeaderboard({
                           )}
                         </div>
                         <div className="text-sm text-muted-foreground">
-                          Match: {score.matchPredictions.correct}/{score.matchPredictions.total}
-                          {score.customPredictions.total > 0 && (
-                            <> · Custom: {score.customPredictions.points}/{score.customPredictions.total}</>
+                          {score.zeroedByContrarian ? (
+                            <span className="text-red-600 dark:text-red-400">Zeroed by contrarian</span>
+                          ) : score.isContrarian && score.didWinContrarian ? (
+                            <>
+                              {score.matchPredictions.total - score.matchPredictions.correct} wrong match{score.matchPredictions.total - score.matchPredictions.correct !== 1 ? 'es' : ''}
+                              {score.customPredictions.total > 0 && (
+                                <> · Custom: {score.customPredictions.points}/{score.customPredictions.total}</>
+                              )}
+                              {score.placementBonus > 0 && (
+                                <> · <span className="font-medium text-green-600 dark:text-green-400">+{score.placementBonus} bonus</span></>
+                              )}
+                            </>
+                          ) : score.isContrarian ? (
+                            <>
+                              Custom: {score.customPredictions.points}/{score.customPredictions.total}
+                            </>
+                          ) : (
+                            <>
+                              Match: {score.matchPredictions.correct}/{score.matchPredictions.total}
+                              {score.customPredictions.total > 0 && (
+                                <> · Custom: {score.customPredictions.points}/{score.customPredictions.total}</>
+                              )}
+                              {score.placementBonus > 0 && (
+                                <> · <span className="font-medium text-green-600 dark:text-green-400">+{score.placementBonus} bonus</span></>
+                              )}
+                            </>
                           )}
                           {score.isContrarian && (
                             <Badge variant="destructive" className="ml-2 text-xs">
@@ -148,12 +154,7 @@ export function EventLeaderboard({
                         </div>
                       </div>
                     </div>
-                    <div className={`text-2xl font-bold ${
-                      placement === 1 ? 'text-yellow-600 dark:text-yellow-400' :
-                      placement === 2 ? 'text-slate-600 dark:text-slate-400' :
-                      placement === 3 ? 'text-orange-600 dark:text-orange-400' :
-                      ''
-                    }`}>
+                    <div className={`text-2xl font-bold ${textClass}`}>
                       {score.totalScore} pts
                     </div>
                   </div>

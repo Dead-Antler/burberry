@@ -65,9 +65,11 @@ describe('Event Scoring System', () => {
       const user2Score = leaderboard.find((s) => s.userId === user2.id)!;
 
       expect(user1Score.matchPredictions.correct).toBe(1);
-      expect(user1Score.totalScore).toBe(1);
+      expect(user1Score.placementBonus).toBe(3); // 1st place
+      expect(user1Score.totalScore).toBe(4); // 1 match + 3 bonus
       expect(user2Score.matchPredictions.correct).toBe(0);
-      expect(user2Score.totalScore).toBe(0);
+      expect(user2Score.placementBonus).toBe(2); // 2nd place
+      expect(user2Score.totalScore).toBe(2); // 0 match + 2 bonus
     });
 
     test('correctly scores free-for-all predictions', async () => {
@@ -101,7 +103,8 @@ describe('Event Scoring System', () => {
 
       const userScore = leaderboard.find((s) => s.userId === user.id)!;
       expect(userScore.matchPredictions.correct).toBe(1);
-      expect(userScore.totalScore).toBe(1);
+      expect(userScore.placementBonus).toBe(3); // sole participant, 1st place
+      expect(userScore.totalScore).toBe(4); // 1 match + 3 bonus
     });
 
     test('handles partial results (some matches unscored)', async () => {
@@ -168,7 +171,8 @@ describe('Event Scoring System', () => {
 
       const userScore = leaderboard.find((s) => s.userId === user.id)!;
       expect(userScore.matchPredictions.correct).toBe(0);
-      expect(userScore.totalScore).toBe(0);
+      expect(userScore.placementBonus).toBe(3); // sole participant, 1st place
+      expect(userScore.totalScore).toBe(3); // 0 match + 3 bonus
     });
   });
 
@@ -280,11 +284,14 @@ describe('Event Scoring System', () => {
       // Get scores
       const leaderboard = await eventService.getScores(event.id);
 
-      // Leaderboard should be sorted with contrarian winner first
+      // Contrarian winner gets incorrect matches + placement bonus
+      // Normal user is zeroed by contrarian
       expect(leaderboard[0]!.userId).toBe(contrarian.id);
       expect(leaderboard[0]!.didWinContrarian).toBe(true);
+      expect(leaderboard[0]!.totalScore).toBe(4); // 1 wrong match + 3 bonus
       expect(leaderboard[1]!.userId).toBe(normalUser.id);
-      expect(leaderboard[1]!.totalScore).toBe(1);
+      expect(leaderboard[1]!.totalScore).toBe(0); // zeroed by contrarian
+      expect(leaderboard[1]!.zeroedByContrarian).toBe(true);
     });
   });
 
@@ -316,7 +323,8 @@ describe('Event Scoring System', () => {
       const userScore = leaderboard.find((s) => s.userId === user.id)!;
       expect(userScore.matchPredictions.total).toBe(0);
       expect(userScore.matchPredictions.correct).toBe(0);
-      expect(userScore.totalScore).toBe(0);
+      expect(userScore.placementBonus).toBe(3); // sole participant, 1st place
+      expect(userScore.totalScore).toBe(3); // 0 match + 3 bonus
     });
 
     test('handles event with no participants', async () => {
