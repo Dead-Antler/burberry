@@ -529,8 +529,11 @@ export type UserScore = {
     points: number;
   };
   totalScore: number;
+  placementBonus: number;
   isContrarian: boolean;
   didWinContrarian: boolean | null;
+  /** True when this user's score was zeroed out by a contrarian winner */
+  zeroedByContrarian: boolean;
 };
 
 export type Leaderboard = UserScore[];

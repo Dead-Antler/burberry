@@ -40,11 +40,7 @@ export const GET = apiHandler(async () => {
   > = {};
 
   for (const leaderboard of allLeaderboards) {
-    // Find the highest score in this event
-    const scores = leaderboard;
-    const maxScore = Math.max(...scores.map((s) => s.totalScore));
-
-    for (const score of scores) {
+    for (const score of leaderboard) {
       if (!userScores[score.userId]) {
         userScores[score.userId] = {
           userId: score.userId,
@@ -71,8 +67,8 @@ export const GET = apiHandler(async () => {
         userScore.contrarianWins += 1;
       }
 
-      // Count first place finishes (including ties)
-      if (score.totalScore === maxScore) {
+      // Count first place finishes (placement bonus of 3 = rank 1)
+      if (score.placementBonus === 3) {
         userScore.firstPlaceFinishes += 1;
       }
     }
