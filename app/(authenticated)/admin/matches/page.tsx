@@ -261,7 +261,7 @@ export default function ManageMatchesPage() {
             onManageParticipants={setParticipantsMatch}
             onRetry={fetchMatches}
             onReorder={handleReorder}
-            isReorderDisabled={!canEditMatches}
+            isReorderDisabled={false}
           />
         ) : (
           <Card>
