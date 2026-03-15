@@ -72,6 +72,13 @@ export function useLeaderboardAnimation(
     return () => clearInterval(interval)
   }, [externalIsAnimating, leaderboard, setExternalIsAnimating, triggerConfetti])
 
+  // Auto-start animation when leaderboard first loads
+  useEffect(() => {
+    if (leaderboard && leaderboard.length > 0 && !hasAnimated && !externalIsAnimating) {
+      setExternalIsAnimating(true)
+    }
+  }, [leaderboard, hasAnimated, externalIsAnimating, setExternalIsAnimating])
+
   const startAnimation = useCallback(() => {
     setExternalIsAnimating(true)
   }, [setExternalIsAnimating])
