@@ -127,6 +127,16 @@ export function CustomPredictionCard({
           <Badge variant="outline" className="text-xs">
             {PREDICTION_TYPE_LABELS[type]}
           </Badge>
+          {template.scoringMode === "closest_under" && (
+            <Badge variant="outline" className="text-xs">
+              Closest
+            </Badge>
+          )}
+          {template.cooldownDays && (
+            <Badge variant="outline" className="text-xs">
+              {template.cooldownDays}d
+            </Badge>
+          )}
         </div>
         {isCorrect && (
           <Badge variant="default" className="text-xs bg-green-600 shrink-0">

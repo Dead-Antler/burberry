@@ -121,6 +121,16 @@ export function CustomPredictionAdmin({
                       <Badge variant="outline" className="text-xs">
                         {PREDICTION_TYPE_LABELS[cp.template.predictionType]}
                       </Badge>
+                      {cp.template.scoringMode === "closest_under" && (
+                        <Badge variant="outline" className="text-xs">
+                          Closest
+                        </Badge>
+                      )}
+                      {cp.template.cooldownDays && (
+                        <Badge variant="outline" className="text-xs">
+                          {cp.template.cooldownDays}d
+                        </Badge>
+                      )}
                     </div>
                   </div>
                   {canModify && (
