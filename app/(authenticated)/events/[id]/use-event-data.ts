@@ -21,6 +21,7 @@ interface UseEventDataReturn {
   matches: MatchWithParticipants[]
   participants: EventJoinWithUser[]
   userJoin: EventJoin | null
+  needsJoin: boolean
   userPredictions: Map<string, MatchPrediction>
   eventCustomPredictions: EventCustomPredictionWithTemplate[]
   userCustomPredictions: Map<string, UserCustomPrediction>
@@ -59,6 +60,8 @@ export function useEventData(eventId: string): UseEventDataReturn {
   const [error, setError] = useState<string | null>(null)
   const [isAnimating, setIsAnimating] = useState(false)
 
+  const needsJoin = event !== null && event.status === 'open' && userJoin === null
+
   const fetchData = useCallback(async () => {
     setIsLoading(true)
     setError(null)
@@ -75,10 +78,7 @@ export function useEventData(eventId: string): UseEventDataReturn {
         const joinStatus = await apiClient.getEventJoinStatus(eventId)
         setUserJoin(joinStatus)
       } catch {
-        if (eventData.status !== 'completed' && eventData.status !== 'pending') {
-          router.push('/events')
-          return
-        }
+        setUserJoin(null)
       }
 
       const participantsData = await apiClient.getEventParticipants(eventId)
@@ -135,7 +135,7 @@ export function useEventData(eventId: string): UseEventDataReturn {
     } finally {
       setIsLoading(false)
     }
-  }, [eventId, router])
+  }, [eventId])
 
   useEffect(() => {
     fetchData()
@@ -361,6 +361,7 @@ export function useEventData(eventId: string): UseEventDataReturn {
     matches,
     participants,
     userJoin,
+    needsJoin,
     userPredictions,
     eventCustomPredictions,
     userCustomPredictions,

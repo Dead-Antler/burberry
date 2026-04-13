@@ -241,15 +241,15 @@ function WrestlerAnswerInput({
         <Button
           size="sm"
           variant="outline"
-          disabled={isSaving || localIds.length === 0}
+          disabled={isSaving}
           onClick={() => onSetAnswer({ answerWrestlerId: JSON.stringify(localIds) })}
         >
-          Set Answer
+          {localIds.length === 0 ? "Set None" : "Set Answer"}
         </Button>
         {hasAnswer && (
           <Badge variant="default" className="text-xs">
             <Check className="h-3 w-3 mr-1" />
-            {wrestlerIds.length} wrestler{wrestlerIds.length !== 1 ? "s" : ""} set
+            {wrestlerIds.length === 0 ? "None" : `${wrestlerIds.length} wrestler${wrestlerIds.length !== 1 ? "s" : ""} set`}
           </Badge>
         )}
       </div>

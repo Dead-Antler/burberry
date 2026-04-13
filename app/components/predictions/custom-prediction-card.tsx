@@ -95,16 +95,6 @@ export function CustomPredictionCard({
 
   const handleWrestlerChange = async (ids: string[]) => {
     if (isLocked) return
-    if (ids.length === 0) {
-      if (!userPrediction) return
-      setIsSaving(true)
-      try {
-        await onPredictionClear(ecp.id)
-      } finally {
-        setIsSaving(false)
-      }
-      return
-    }
     await handleChange({ predictionWrestlerId: JSON.stringify(ids) })
   }
 
@@ -255,6 +245,7 @@ function formatAnswer(type: PredictionType, value: unknown, wrestlerNames?: Map<
         try {
           const ids = JSON.parse(value)
           if (Array.isArray(ids)) {
+            if (ids.length === 0) return "None"
             return ids
               .map((id) => wrestlerNames?.get(id) ?? id)
               .join(", ")

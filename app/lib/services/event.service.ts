@@ -91,6 +91,8 @@ function evaluateCustomPrediction(
       try {
         const userIds: string[] = JSON.parse(userPrediction.predictionWrestlerId);
         const answerIds: string[] = JSON.parse(answer.answerWrestlerId);
+        // Both predicted "none" — correct
+        if (answerIds.length === 0 && userIds.length === 0) return 1;
         const answerSet = new Set(answerIds);
         return userIds.filter((id) => answerSet.has(id)).length;
       } catch {
