@@ -57,7 +57,7 @@ jobs:
             type=sha
             type=ref,event=branch
 
-      - uses: docker/setup-buildx-action@v3
+      - uses: docker/setup-buildx-action@v4
 
       - name: Build and push
         uses: docker/build-push-action@v6
