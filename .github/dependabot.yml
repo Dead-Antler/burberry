@@ -25,11 +25,12 @@ updates:
           - "@tailwindcss/*"
           - "tailwind-merge"
           - "tw-animate-css"
-      # Drizzle ORM + kit
+      # Drizzle ORM + kit + SQLite driver
       drizzle:
         patterns:
           - "drizzle-orm"
           - "drizzle-kit"
+          - "@libsql/*"
       # DnD Kit
       dnd-kit:
         patterns:

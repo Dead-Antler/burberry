@@ -407,8 +407,8 @@ export const customPredictionService = {
       } catch {
         throw apiError('predictionWrestlerId must be a JSON array of wrestler IDs', 400);
       }
-      if (!Array.isArray(parsedWrestlerIds) || parsedWrestlerIds.length === 0) {
-        throw apiError('At least one wrestler must be selected', 400);
+      if (!Array.isArray(parsedWrestlerIds)) {
+        throw apiError('predictionWrestlerId must be a JSON array of wrestler IDs', 400);
       }
       for (const wrestlerId of parsedWrestlerIds) {
         await ensureForeignKey(wrestlers, wrestlerId, 'Wrestler');
@@ -586,8 +586,8 @@ export const customPredictionService = {
       } catch {
         throw apiError('predictionWrestlerId must be a JSON array of wrestler IDs', 400);
       }
-      if (!Array.isArray(wrestlerIds) || wrestlerIds.length === 0) {
-        throw apiError('At least one wrestler must be selected', 400);
+      if (!Array.isArray(wrestlerIds)) {
+        throw apiError('predictionWrestlerId must be a JSON array of wrestler IDs', 400);
       }
       for (const wrestlerId of wrestlerIds) {
         await ensureForeignKey(wrestlers, wrestlerId, 'Wrestler');

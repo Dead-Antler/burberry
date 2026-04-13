@@ -12,6 +12,7 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
 import { useSession } from "@/app/lib/auth-client"
+import { JoinEventDialog } from "@/app/components/events/join-event-dialog"
 import { MatchPredictionCard } from "@/app/components/predictions/match-prediction-card"
 import { CustomPredictionCard } from "@/app/components/predictions/custom-prediction-card"
 import { EventAdminControls } from "@/app/components/events/event-admin-controls"
@@ -34,7 +35,9 @@ export default function EventPredictionPage({
     matches,
     participants,
     userJoin,
+    needsJoin,
     userPredictions,
+    fetchData,
     eventCustomPredictions,
     userCustomPredictions,
     predictionStats,
@@ -281,6 +284,17 @@ export default function EventPredictionPage({
           </TabsContent>
         </Tabs>
       </div>
+
+      {needsJoin && event && (
+        <JoinEventDialog
+          event={event}
+          open={true}
+          onOpenChange={(open) => {
+            if (!open) router.push('/events')
+          }}
+          onSuccess={() => fetchData()}
+        />
+      )}
     </>
   )
 }
