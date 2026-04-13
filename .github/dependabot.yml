@@ -1,8 +1,8 @@
 version: 2
 
 updates:
-  # npm dependencies (bun uses the same package.json/lockfile)
-  - package-ecosystem: npm
+  # Bun dependencies (updates package.json and bun.lock together)
+  - package-ecosystem: bun
     directory: /
     schedule:
       interval: weekly
