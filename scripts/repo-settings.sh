@@ -112,8 +112,10 @@ REPO_PAYLOAD=$(jq -n '{
 # strict_required_status_checks_policy is false: requiring branches be up to
 # date would force a rebase of every open Renovate PR on each merge.
 #
-# Admin bypass is "pull_requests", not "always" — an admin can merge a PR that
-# checks are blocking, but cannot push straight to main.
+# Admin bypass is "pull_request", not "always": an admin can merge a PR that
+# checks are blocking, but cannot push straight to main. Note the value is
+# singular — the API rejects "pull_requests" with a 422 "Bypass mode is
+# invalid".
 # --------------------------------------------------------------------------
 CHECKS_JSON=$(printf '%s\n' "${REQUIRED_CHECKS[@]}" \
   | jq -R . | jq -s --argjson app "$ACTIONS_APP_ID" \
@@ -127,7 +129,7 @@ RULESET_PAYLOAD=$(jq -n \
   enforcement: "active",
   conditions: { ref_name: { include: ["~DEFAULT_BRANCH"], exclude: [] } },
   bypass_actors: [
-    { actor_id: 5, actor_type: "RepositoryRole", bypass_mode: "pull_requests" }
+    { actor_id: 5, actor_type: "RepositoryRole", bypass_mode: "pull_request" }
   ],
   rules: [
     { type: "deletion" },
@@ -139,7 +141,12 @@ RULESET_PAYLOAD=$(jq -n \
         require_code_owner_review:         false,
         require_last_push_approval:        false,
         required_review_thread_resolution: false,
-        allowed_merge_methods:             ["squash"]
+        allowed_merge_methods:             ["squash"],
+        # GitHub defaults this to true. Left on, it demands an approval for
+        # commits it cannot attribute to a GitHub account, which contradicts
+        # required_approving_review_count: 0 and would strand bot PRs that
+        # auto-merge. Set explicitly so the state does not depend on a default.
+        require_extra_approval_for_unattributed_changes: false
       }
     },
     { type: "required_status_checks",
@@ -162,7 +169,8 @@ if [ "$DRY_RUN" = "1" ]; then
 fi
 
 info "Applying repository settings..."
-echo "$REPO_PAYLOAD" | gh api -X PATCH "repos/$REPO" --input - >/dev/null
+api_out=$(echo "$REPO_PAYLOAD" | gh api -X PATCH "repos/$REPO" --input - 2>&1) \
+  || die "repository settings update failed: $api_out"
 printf '    \033[32m✓\033[0m squash-only, auto-merge on, branches deleted on merge\n'
 
 RULESET_ID=$(gh api "repos/$REPO/rulesets" --jq \
@@ -170,10 +178,12 @@ RULESET_ID=$(gh api "repos/$REPO/rulesets" --jq \
 
 if [ -n "$RULESET_ID" ]; then
   info "Updating existing ruleset '$RULESET_NAME' (id $RULESET_ID)..."
-  echo "$RULESET_PAYLOAD" | gh api -X PUT "repos/$REPO/rulesets/$RULESET_ID" --input - >/dev/null
+  api_out=$(echo "$RULESET_PAYLOAD" | gh api -X PUT "repos/$REPO/rulesets/$RULESET_ID" --input - 2>&1) \
+    || die "ruleset update failed: $api_out"
 else
   info "Creating ruleset '$RULESET_NAME'..."
-  echo "$RULESET_PAYLOAD" | gh api -X POST "repos/$REPO/rulesets" --input - >/dev/null
+  api_out=$(echo "$RULESET_PAYLOAD" | gh api -X POST "repos/$REPO/rulesets" --input - 2>&1) \
+    || die "ruleset create failed: $api_out"
 fi
 printf '    \033[32m✓\033[0m %d required checks, PRs enforced, force-push and deletion blocked\n' \
   "${#REQUIRED_CHECKS[@]}"
