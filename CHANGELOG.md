@@ -1,5 +1,21 @@
 # Changelog
 
+## [0.2.0](https://github.com/Dead-Antler/burberry/compare/v0.1.1...v0.2.0) (2026-08-23)
+
+
+### ⚠ BREAKING CHANGES
+
+* the container now runs as uid 1001 by default instead of starting as root. Deployments with a data volume owned by another uid must chown it to 1001 or add `--user 0:0` to keep the deprecated PUID/PGID root mode.
+
+### Features
+
+* run the container unprivileged by default ([#82](https://github.com/Dead-Antler/burberry/issues/82)) ([035ac09](https://github.com/Dead-Antler/burberry/commit/035ac09a41c7e7e2c42bd15024a7edb9787e5296))
+
+
+### Bug Fixes
+
+* tag releases by removing forced grouped release PR ([#78](https://github.com/Dead-Antler/burberry/issues/78)) ([8be6541](https://github.com/Dead-Antler/burberry/commit/8be65410d361234bd749f6fbc1e584b197f06231))
+
 ## [0.1.1](https://github.com/Dead-Antler/burberry/compare/v0.1.0...v0.1.1) (2026-08-23)
 
 
