@@ -47,7 +47,7 @@ jobs:
           persist-credentials: false
       # Suppression for setup-bun's built-in cache documented in
       # .github/zizmor.yml under `cache-poisoning`.
-      - uses: oven-sh/setup-bun@735343b667d3e6f658f44d0eca948eb6282f2b76 # v2.0.2
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
       - run: bun install --frozen-lockfile
       - uses: snyk/actions/node@9cf6ca713d71123d2d229cc3d7f145b96ea3c518 # master (snyk does not tag releases)
         env:
@@ -55,7 +55,7 @@ jobs:
         with:
           command: test
           args: --severity-threshold=high --file=package.json --sarif-file-output=snyk.sarif
-      - uses: github/codeql-action/upload-sarif@68bde559dea0fdcac2102bfdf6230c5f70eb485e # v4.35.4
+      - uses: github/codeql-action/upload-sarif@ff2f1c621b7f889edc0d3c761ac2e6a3f8cdb0dd # v4.37.7
         if: always()
         with:
           sarif_file: snyk.sarif
