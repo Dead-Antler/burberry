@@ -11,13 +11,20 @@ export async function register() {
     try {
       await runMigrations();
     } catch (error) {
-      console.error('Failed to run migrations on startup');
+      console.error('Failed to run migrations on startup:', error);
       // Fail fast - don't start the app if migrations fail
       process.exit(1);
     }
 
     // Initialize app (creates admin user on first run)
     const { initializeApp } = await import('./app/lib/init');
-    await initializeApp();
+
+    try {
+      await initializeApp();
+    } catch (error) {
+      console.error('Failed to initialize app on startup:', error);
+      // Fail fast - a failed first run leaves no way to log in
+      process.exit(1);
+    }
   }
 }

@@ -64,15 +64,43 @@ See [docker-compose.yml](docker-compose.yml) for the full configuration.
 ### Docker Run
 
 ```bash
+mkdir -p ./data && chown -R "$(id -u):$(id -g)" ./data
+
 docker run -d \
   --name burberry \
+  --user "$(id -u):$(id -g)" \
   -p 3000:3000 \
   -e AUTH_SECRET=$(openssl rand -base64 32) \
   -e DB_FILE_NAME=file:data/database.db \
   -e AUTH_URL=http://localhost:3000 \
   -e ADMIN_EMAIL=admin@example.com \
-  -v burberry-data:/app/data \
+  -v ./data:/app/data \
   ghcr.io/dead-antler/burberry:latest
+```
+
+### Container user
+
+The image runs unprivileged as uid/gid `1001` by default — it never needs root.
+
+Pass `--user <uid>:<gid>` (or `user:` in Compose) to run as a different host
+user. The container cannot change ownership of your data in this mode, so the
+mounted directory must already be writable by that uid. Prefer a bind mount you
+own; a named volume inherits the image's ownership (`1001:0`), which only works
+for the default user or `--user <uid>` with no group. If the directory is not
+writable, startup fails with an explicit error telling you what to `chown`.
+
+#### Root mode (deprecated)
+
+Starting the container as root (`--user 0:0`) enables the legacy `PUID`/`PGID`
+behaviour: the app user is remapped to those ids and the data directory is
+chowned to match before privileges are dropped. This path still works but logs
+a deprecation warning and will be removed in a future release.
+
+It is only needed when an existing data volume is owned by a uid other than
+`1001`. To migrate off it, chown the data once and drop back to the default:
+
+```bash
+docker run --rm -u 0 -v burberry-data:/data alpine chown -R 1001:1001 /data
 ```
 
 ### Building the image locally
@@ -90,6 +118,9 @@ docker exec burberry bun scripts/seed.ts    # Seed initial data
 docker exec burberry bun scripts/reset.ts   # Reset data (preserves users)
 ```
 
+These run as the same unprivileged user as the app, so they cannot leave
+root-owned files behind in the data directory.
+
 ## Environment Variables
 
 | Variable         | Required | Default    | Description                                                                          |
@@ -100,8 +131,9 @@ docker exec burberry bun scripts/reset.ts   # Reset data (preserves users)
 | `ADMIN_EMAIL`    | No       | —          | Email for auto-created admin account on first startup                                |
 | `ADMIN_PASSWORD` | No       | _(random)_ | Admin password. If unset, randomly generated and printed to console on first startup |
 | `DB_LOGGING`     | No       | `false`    | Enable Drizzle ORM query logging                                                     |
-| `PUID`           | No       | `1001`     | User ID for the container process (Docker only)                                      |
-| `PGID`           | No       | `1001`     | Group ID for the container process (Docker only)                                     |
+| `PUID`           | No       | `1001`     | _Deprecated._ User ID remap; only applies in root mode (`--user 0:0`)                |
+| `PGID`           | No       | `1001`     | _Deprecated._ Group ID remap; only applies in root mode (`--user 0:0`)               |
+| `DATA_DIR`       | No       | `/app/data`| Directory for uploaded files, and the directory the container prepares on startup     |
 
 See [.env.example](.env.example) for a copyable template with comments.
 
