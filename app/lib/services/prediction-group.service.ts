@@ -25,7 +25,7 @@ export interface UpdatePredictionGroupInput {
   name?: string;
 }
 
-export interface ListPredictionGroupsParams extends PaginationParams {}
+export type ListPredictionGroupsParams = PaginationParams;
 
 /**
  * Prediction Group Service

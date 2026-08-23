@@ -1,0 +1,197 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": [
+    "config:recommended",
+    ":semanticCommits",
+    ":semanticCommitTypeAll(deps)",
+    ":dependencyDashboard",
+    "helpers:pinGitHubActionDigestsToSemver",
+    ":automergeDigest",
+    ":maintainLockFilesWeekly",
+    ":prHourlyLimit2",
+    ":prConcurrentLimit10"
+  ],
+  "timezone": "Australia/Sydney",
+  "schedule": [
+    "before 5am on monday"
+  ],
+  "labels": [
+    "dependencies"
+  ],
+  "minimumReleaseAge": "3 days",
+  "prHeader": "Automated dependency update from Renovate. Merging is gated on CI passing (tests, type checks, lint, bun audit, CodeQL).",
+  "rebaseWhen": "behind-base-branch",
+  "rangeStrategy": "pin",
+  "platformAutomerge": true,
+  "automergeStrategy": "squash",
+  "lockFileMaintenance": {
+    "enabled": true,
+    "automerge": true,
+    "schedule": [
+      "before 5am on monday"
+    ]
+  },
+  "vulnerabilityAlerts": {
+    "labels": [
+      "security"
+    ],
+    "schedule": [
+      "at any time"
+    ],
+    "automerge": false,
+    "prCreation": "immediate",
+    "minimumReleaseAge": "0"
+  },
+  "osvVulnerabilityAlerts": true,
+  "packageRules": [
+    {
+      "description": "Auto-merge patch, pin, and digest updates for any dependency. These almost never change behaviour and have the smallest blast radius.",
+      "matchUpdateTypes": [
+        "patch",
+        "pin",
+        "digest"
+      ],
+      "automerge": true
+    },
+    {
+      "description": "Auto-merge minor and patch updates for devDependencies. Dev tooling churn is low-risk because it never ships in the runtime artifact.",
+      "matchDepTypes": [
+        "devDependencies"
+      ],
+      "matchUpdateTypes": [
+        "minor",
+        "patch"
+      ],
+      "automerge": true
+    },
+    {
+      "description": "Hold minor updates for runtime dependencies for manual review. Behaviour changes are possible and we want eyes on them.",
+      "matchDepTypes": [
+        "dependencies"
+      ],
+      "matchUpdateTypes": [
+        "minor"
+      ],
+      "automerge": false
+    },
+    {
+      "description": "All major updates require manual review and approval via the Dependency Dashboard. Holding majors prevents surprise breakage from a maintainer's weekend release.",
+      "matchUpdateTypes": [
+        "major"
+      ],
+      "automerge": false,
+      "dependencyDashboardApproval": true,
+      "labels": [
+        "dependencies",
+        "major-update"
+      ]
+    },
+    {
+      "description": "Group all GitHub Actions updates into one PR per run. Cuts noise \u2014 actions are usually trivial bumps.",
+      "matchManagers": [
+        "github-actions"
+      ],
+      "groupName": "github-actions",
+      "automerge": true,
+      "matchUpdateTypes": [
+        "minor",
+        "patch",
+        "digest"
+      ]
+    },
+    {
+      "description": "Group Radix UI components \u2014 they move in lockstep.",
+      "matchPackageNames": [
+        "@radix-ui/**",
+        "radix-ui"
+      ],
+      "groupName": "radix"
+    },
+    {
+      "description": "Group @types/* packages \u2014 type-definition-only updates.",
+      "matchPackageNames": [
+        "@types/**"
+      ],
+      "groupName": "types",
+      "automerge": true,
+      "matchUpdateTypes": [
+        "minor",
+        "patch"
+      ]
+    },
+    {
+      "description": "Group Tailwind ecosystem updates.",
+      "matchPackageNames": [
+        "tailwindcss",
+        "@tailwindcss/**",
+        "tailwind-merge",
+        "tw-animate-css"
+      ],
+      "groupName": "tailwind"
+    },
+    {
+      "description": "Group Drizzle ORM, drizzle-kit, and the libSQL driver.",
+      "matchPackageNames": [
+        "drizzle-orm",
+        "drizzle-kit",
+        "@libsql/**"
+      ],
+      "groupName": "drizzle"
+    },
+    {
+      "description": "Group dnd-kit packages \u2014 they release together.",
+      "matchPackageNames": [
+        "@dnd-kit/**"
+      ],
+      "groupName": "dnd-kit"
+    },
+    {
+      "description": "Group React + react-hook-form updates. Reactivity changes are easier to evaluate together.",
+      "matchPackageNames": [
+        "react",
+        "react-dom",
+        "react-hook-form",
+        "@hookform/**"
+      ],
+      "groupName": "react"
+    },
+    {
+      "description": "Group Next.js core + its ESLint config so they bump together. Holding the group for manual review because Next majors can change build behaviour.",
+      "matchPackageNames": [
+        "next",
+        "eslint-config-next"
+      ],
+      "groupName": "next"
+    },
+    {
+      "description": "Group dev tooling that often releases coordinated updates.",
+      "matchPackageNames": [
+        "eslint",
+        "typescript",
+        "tsx",
+        "shadcn"
+      ],
+      "groupName": "dev-tooling"
+    },
+    {
+      "description": "Group Better Auth and its plugins so auth surface bumps land together.",
+      "matchPackageNames": [
+        "better-auth",
+        "better-auth/**"
+      ],
+      "groupName": "better-auth"
+    }
+  ],
+  "customManagers": [
+    {
+      "description": "Keep CI tool versions pinned in workflow `run:` steps up to date. These are installed by go/uvx rather than by an action, so no built-in manager sees them; the `# renovate:` comment above each run line supplies the datasource.",
+      "customType": "regex",
+      "managerFilePatterns": [
+        "/^\\.github/workflows/.+\\.ya?ml$/"
+      ],
+      "matchStrings": [
+        "# renovate: datasource=(?<datasource>[a-z-]+?) depName=(?<depName>[^\\s]+?)\\s+run: .*?@(?<currentValue>v?\\d+\\.\\d+\\.\\d+)"
+      ]
+    }
+  ]
+}
