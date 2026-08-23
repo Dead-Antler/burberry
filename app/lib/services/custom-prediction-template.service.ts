@@ -33,7 +33,7 @@ export interface UpdateCustomPredictionTemplateInput {
   cooldownDays?: number | null;
 }
 
-export interface ListCustomPredictionTemplatesParams extends PaginationParams {}
+export type ListCustomPredictionTemplatesParams = PaginationParams;
 
 /**
  * Custom Prediction Template Service

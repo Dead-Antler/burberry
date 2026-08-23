@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useSyncExternalStore } from "react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
 import { LogOut, User } from "lucide-react"
@@ -36,11 +36,14 @@ interface NavUserProps {
 export function NavUser({ user }: NavUserProps) {
   const { isMobile } = useSidebar()
   const router = useRouter()
-  const [mounted, setMounted] = useState(false)
-
-  useEffect(() => {
-    setMounted(true)
-  }, [])
+  // Hydration guard. useSyncExternalStore returns the server snapshot (false)
+  // during SSR and the client snapshot (true) once hydrated, which avoids the
+  // cascading re-render of a setState-in-effect mount flag.
+  const mounted = useSyncExternalStore(
+    () => () => {},
+    () => true,
+    () => false
+  )
 
   const initials = user.name
     ? user.name

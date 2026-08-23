@@ -1,3 +1,27 @@
+[install]
+# Pin exact versions on `bun add` instead of caret ranges. Removes silent
+# minor/patch drift between installs; combined with Renovate, every version
+# change becomes an explicit, reviewable PR.
+exact = true
+
+# Make the lockfile format explicit. bun.lock (text) is auditable and
+# diff-friendly; this prevents an accidental switch back to binary bun.lockb.
+saveTextLockfile = true
+
+# Pin the registry explicitly. Defence-in-depth against a compromised user
+# `.npmrc` or environment variable that silently redirects to a different
+# registry. Bun's default is already this URL — making it explicit means a
+# future override has to happen in this committed file.
+registry = "https://registry.npmjs.org/"
+
+# Quarantine freshly-published packages for 3 days. Hijacked-account,
+# typosquat, and dependency-confusion attacks are typically caught and
+# yanked within hours of publication; this window keeps CI from installing
+# anything that hasn't had time to be vetted by the wider ecosystem.
+# Excludes are for packages where a same-day security patch is realistic.
+minimumReleaseAge = 259200
+minimumReleaseAgeExcludes = ["typescript", "@types/node"]
+
 [test]
 preload = ["./tests/setup.ts"]
 

@@ -3,6 +3,7 @@
  */
 
 import { describe, test, expect, beforeAll, beforeEach } from 'bun:test';
+import { eq } from 'drizzle-orm';
 import { setupTestDb, clearTestDb, getTestDb, schema } from '../helpers/db';
 import { createBrand, createEvent, createMatch, createWrestler, createMatchParticipant } from '../helpers/fixtures';
 
@@ -26,7 +27,7 @@ describe('Entity Helpers', () => {
       // Verify event was created with open status
       const db = getTestDb();
       const [dbEvent] = await db.select().from(schema.events).where(
-        require('drizzle-orm').eq(schema.events.id, event.id)
+        eq(schema.events.id, event.id)
       );
 
       expect(dbEvent).toBeDefined();
@@ -56,7 +57,7 @@ describe('Entity Helpers', () => {
 
       const db = getTestDb();
       const [dbMatch] = await db.select().from(schema.matches).where(
-        require('drizzle-orm').eq(schema.matches.id, match.id)
+        eq(schema.matches.id, match.id)
       );
 
       expect(dbMatch).toBeDefined();
@@ -74,7 +75,7 @@ describe('Entity Helpers', () => {
 
       const db = getTestDb();
       const [dbParticipant] = await db.select().from(schema.matchParticipants).where(
-        require('drizzle-orm').eq(schema.matchParticipants.id, participant.id)
+        eq(schema.matchParticipants.id, participant.id)
       );
 
       expect(dbParticipant).toBeDefined();

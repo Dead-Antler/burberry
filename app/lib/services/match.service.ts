@@ -107,7 +107,7 @@ async function enrichParticipants(
   ]);
 
   // Batch load current group memberships for wrestlers
-  let wrestlerGroupsMap = new Map<string, Array<{ id: string; name: string }>>();
+  const wrestlerGroupsMap = new Map<string, Array<{ id: string; name: string }>>();
   if (wrestlerIds.size > 0) {
     const memberships = await db
       .select({

@@ -24,9 +24,8 @@ export interface UpdateBrandInput {
   name?: string;
 }
 
-export interface ListBrandsParams extends PaginationParams {
-  // Brands have no additional filters currently
-}
+// Brands have no additional filters currently.
+export type ListBrandsParams = PaginationParams;
 
 /**
  * Brand Service
