@@ -22,7 +22,7 @@ ENV NODE_ENV=production
 RUN apt-get update && apt-get install -y --no-install-recommends gosu && \
     rm -rf /var/lib/apt/lists/* && \
     groupadd --system --gid 1001 nodejs && \
-    useradd --system --uid 1001 --gid nodejs nextjs
+    useradd --system --uid 1001 --gid nodejs --create-home nextjs
 
 # Install production dependencies (for scripts like db:seed, db:reset)
 COPY --from=builder /app/package.json /app/bun.lock ./
@@ -40,11 +40,19 @@ COPY --from=builder /app/drizzle ./drizzle
 COPY --from=builder /app/scripts ./scripts
 COPY --from=builder /app/init ./init
 
-# Create data directory for SQLite volume mount
-RUN mkdir -p /app/data && chown nextjs:nodejs /app/data
+# Create writable runtime directories.
+# Group 0 ownership + group write keeps these usable when the container is
+# started with an arbitrary UID (docker run --user), which defaults to gid 0.
+RUN mkdir -p /app/data /app/.next/cache && \
+    chown -R nextjs:0 /app/data /app/.next/cache && \
+    chmod -R g+rwX /app/data /app/.next/cache
 
 COPY docker-entrypoint.sh /usr/local/bin/
 RUN chmod +x /usr/local/bin/docker-entrypoint.sh
+
+# Run unprivileged by default. Override with `--user <uid>:<gid>` to run as a
+# specific host user, or `--user 0:0` for the deprecated PUID/PGID root mode.
+USER nextjs
 
 EXPOSE 3000
 ENV HOSTNAME=0.0.0.0

@@ -51,27 +51,32 @@ export async function initializeApp(): Promise<void> {
   const userId = crypto.randomUUID();
   const now = new Date();
 
-  // Create user record
-  await db.insert(users).values({
-    id: userId,
-    email: adminEmail,
-    name: 'Admin',
-    emailVerified: false,
-    role: 'admin',
-    banned: false,
-    createdAt: now,
-    updatedAt: now,
-  });
+  // Create the user and its credential account atomically. A partial write
+  // would leave a user row with no password, and the userCount check above
+  // would then skip initialization forever - locking everyone out.
+  await db.transaction(async (tx) => {
+    // Create user record
+    await tx.insert(users).values({
+      id: userId,
+      email: adminEmail,
+      name: 'Admin',
+      emailVerified: false,
+      role: 'admin',
+      banned: false,
+      createdAt: now,
+      updatedAt: now,
+    });
 
-  // Create credential account
-  await db.insert(accounts).values({
-    id: `acc_${userId}`,
-    userId: userId,
-    accountId: userId,
-    providerId: 'credential',
-    password: hashedPassword,
-    createdAt: now,
-    updatedAt: now,
+    // Create credential account
+    await tx.insert(accounts).values({
+      id: `acc_${userId}`,
+      userId: userId,
+      accountId: userId,
+      providerId: 'credential',
+      password: hashedPassword,
+      createdAt: now,
+      updatedAt: now,
+    });
   });
 
   // Log credentials (only on first run)

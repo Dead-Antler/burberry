@@ -2,11 +2,13 @@ services:
   burberry:
     image: ghcr.io/dead-antler/burberry:latest
     container_name: burberry
+    # The image runs unprivileged as uid 1001 by default. To run as a specific
+    # host user, uncomment below and bind mount a directory that user owns:
+    #   mkdir -p ./data && chown -R "$(id -u):$(id -g)" ./data
+    # user: "1000:1000"
     ports:
       - "${PORT:-3000}:3000"
     environment:
-      PUID: ${PUID:-1001}
-      PGID: ${PGID:-1001}
       DB_FILE_NAME: file:data/database.db
       AUTH_SECRET: ${AUTH_SECRET:?Set AUTH_SECRET in .env or environment}
       AUTH_URL: ${AUTH_URL:-http://localhost:3000}
@@ -14,8 +16,16 @@ services:
       # ADMIN_PASSWORD: ${ADMIN_PASSWORD:-}
       # TRUSTED_ORIGINS: ${TRUSTED_ORIGINS:-}
       # DB_LOGGING: "true"
+      #
+      # Deprecated root mode: only needed if an existing data volume is owned
+      # by a uid other than 1001. Requires `user: "0:0"` above, and starts the
+      # container as root so it can chown the volume before dropping back down.
+      # PUID: ${PUID:-1001}
+      # PGID: ${PGID:-1001}
     volumes:
       - app-data:/app/data
+      # When using `user:` above, swap the named volume for a bind mount:
+      # - ./data:/app/data
     restart: unless-stopped
 
 volumes:
