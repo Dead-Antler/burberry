@@ -3,7 +3,7 @@
   "extends": [
     "config:recommended",
     ":semanticCommits",
-    ":semanticCommitTypeAll(deps)",
+    ":semanticPrefixFixDepsChoreOthers",
     ":dependencyDashboard",
     "helpers:pinGitHubActionDigestsToSemver",
     ":automergeDigest",
