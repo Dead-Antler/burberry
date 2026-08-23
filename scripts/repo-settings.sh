@@ -37,6 +37,7 @@ REQUIRED_CHECKS=(
   "Analyze (javascript-typescript)"
   "actionlint (workflows)"
   "zizmor (workflow security)"
+  "conventional commit title"
 )
 
 die() { printf '\033[31merror:\033[0m %s\n' "$*" >&2; exit 1; }
@@ -60,9 +61,22 @@ info "Default branch: $DEFAULT_BRANCH"
 # check that never reports and silently blocks every PR. Warn on any name that
 # has not actually been seen on the default branch.
 # --------------------------------------------------------------------------
-info "Verifying required check names have been observed on $DEFAULT_BRANCH..."
-SEEN=$(gh api "repos/$REPO/commits/$DEFAULT_BRANCH/check-runs" --paginate \
-         --jq '.check_runs[].name' 2>/dev/null | sort -u || true)
+info "Verifying required check names have been observed..."
+# Look at the default branch *and* recent pull request heads. Workflows that
+# only trigger on `pull_request` (the PR title lint) never report a check run
+# against a default-branch commit, so checking $DEFAULT_BRANCH alone would
+# reject them forever.
+SEEN=$(
+  {
+    gh api "repos/$REPO/commits/$DEFAULT_BRANCH/check-runs" --paginate \
+      --jq '.check_runs[].name' 2>/dev/null || true
+    for sha in $(gh pr list --repo "$REPO" --state all --limit 10 \
+                   --json headRefOid --jq '.[].headRefOid' 2>/dev/null || true); do
+      gh api "repos/$REPO/commits/$sha/check-runs" \
+        --jq '.check_runs[].name' 2>/dev/null || true
+    done
+  } | sort -u
+)
 
 MISSING=0
 for check in "${REQUIRED_CHECKS[@]}"; do
@@ -75,7 +89,7 @@ for check in "${REQUIRED_CHECKS[@]}"; do
 done
 
 if [ "$MISSING" = "1" ]; then
-  warn "Some checks have never reported on $DEFAULT_BRANCH."
+  warn "Some checks have never reported on $DEFAULT_BRANCH or on a recent PR."
   warn "If the workflows have not merged yet this is expected — but any name"
   warn "that stays unreported will block all PRs. Set FORCE=1 to proceed."
   [ "${FORCE:-0}" = "1" ] || [ "$DRY_RUN" = "1" ] || die "aborting (set FORCE=1 to override)"
