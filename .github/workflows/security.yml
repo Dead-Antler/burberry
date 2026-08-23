@@ -45,7 +45,7 @@ jobs:
       # verification automatically. Wrapper actions for actionlint have a
       # history of breaking due to transitive Node.js compatibility issues,
       # and piping the upstream install script into bash is avoidable here.
-      - uses: actions/setup-go@44694675825211faa026b3c33043df3e48a5fa00 # v6.0.0
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version: stable
       - name: Install actionlint
