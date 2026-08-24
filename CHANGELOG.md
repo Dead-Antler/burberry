@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.2.1](https://github.com/Dead-Antler/burberry/compare/v0.2.0...v0.2.1) (2026-08-24)
+
+
+### Bug Fixes
+
+* **deps:** update dependency @libsql/client to v0.17.4 ([#94](https://github.com/Dead-Antler/burberry/issues/94)) ([1890bdd](https://github.com/Dead-Antler/burberry/commit/1890bdd7ce62a1acb5e1681cddb5a2c146420f34))
+* **deps:** update dependency isomorphic-dompurify to v3 ([#90](https://github.com/Dead-Antler/burberry/issues/90)) ([a8f14a1](https://github.com/Dead-Antler/burberry/commit/a8f14a1461773b54141563b5964295b1f86295dd))
+
 ## [0.2.0](https://github.com/Dead-Antler/burberry/compare/v0.1.1...v0.2.0) (2026-08-23)
 
 
