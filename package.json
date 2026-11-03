@@ -81,7 +81,7 @@
     "unrs-resolver"
   ],
   "overrides": {
-    "ws": "8.21.3",
+    "ws": "8.22.1",
     "nanoid": "6.0.2",
     "defu": "6.1.7"
   }
